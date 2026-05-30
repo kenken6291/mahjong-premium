@@ -5,13 +5,14 @@
 // --- Firebase Config (ユーザー設定エリア) ---
 // ※FIREBASE_SETUP.mdに従い、コピーした設定オブジェクトをここに貼り付けてください。
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-    projectId: "YOUR_PROJECT",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCILp9Mz5-AUKfR_b42SCjv9pkO93kUC08",
+  authDomain: "reversi-premium.firebaseapp.com",
+  databaseURL: "https://reversi-premium-default-rtdb.firebaseio.com",
+  projectId: "reversi-premium",
+  storageBucket: "reversi-premium.firebasestorage.app",
+  messagingSenderId: "328739106410",
+  appId: "1:328739106410:web:610c1af903d6e27eb4e413",
+  measurementId: "G-B0VLLZTBGV"
 };
 
 // --- Constants ---
