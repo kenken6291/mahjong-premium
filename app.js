@@ -154,7 +154,7 @@ const svgSoundOff = document.getElementById('svg-sound-off');
 
 // Modals
 const resultModal = document.getElementById('result-modal');
-const winnerTextEl = document.getElementById('winnerText');
+const winnerTextEl = document.getElementById('winner-text');
 const finalScoreBlackEl = document.getElementById('final-score-black');
 const finalScoreWhiteEl = document.getElementById('final-score-white');
 const finalNameBlackEl = document.getElementById('final-name-black');
