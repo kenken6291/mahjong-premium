@@ -867,6 +867,35 @@ const EVAL_MAP = [
     [120, -20,  20,   5,   5,  20, -20, 120]
 ];
 
+// --- AI Turn Orchestrator ---
+function triggerAiMove() {
+    updateUI();
+    const delay = 600 + Math.random() * 800; // Simulated thinking time for UI organic feel
+    
+    setTimeout(() => {
+        if (!gameActive || turn === playerColor) return;
+        
+        const moves = getValidMoves(board, turn);
+        if (moves.length === 0) {
+            advanceTurn();
+            return;
+        }
+        
+        let selectedMove = null;
+        if (aiDifficulty === 'easy') {
+            selectedMove = getEasyAiMove(board, turn);
+        } else if (aiDifficulty === 'medium') {
+            selectedMove = getMediumAiMove(board, turn);
+        } else {
+            selectedMove = getHardAiMove(board, turn);
+        }
+        
+        if (selectedMove) {
+            executeMove(selectedMove[0], selectedMove[1]);
+        }
+    }, delay);
+}
+
 // 盤面全体の評価関数（AI用）
 function evaluateBoard(boardState, aiColor) {
     const oppColor = aiColor === BLACK ? WHITE : BLACK;
