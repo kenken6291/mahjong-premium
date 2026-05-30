@@ -819,15 +819,44 @@ function checkWin(boardState, row, col) {
 function undoMove() {
     if (moveHistory.length === 0 || replayMode) return;
     
+    // In AI Mode, we need to undo both AI and Player moves to get back to player's turn
     if (gameMode === 'pve' && moveHistory.length >= 2) {
-        moveHistory.pop(); // AIの直前の状態
+        // Pop last AI turn state
+        moveHistory.pop();
         gameRecord.pop();
-        const prevState = moveHistory.pop(); // プレイヤーの直前の状態
+        // Pop last Player turn state
+        const prevState = moveHistory.pop();
         gameRecord.pop();
+        
         restoreState(prevState);
     } else {
+        // Standard PvP single move undo
         const prevState = moveHistory.pop();
-       const EVAL_MAP = [
+        gameRecord.pop();
+        
+        restoreState(prevState);
+    }
+    
+    if (moveHistory.length === 0) {
+        btnUndo.disabled = true;
+    }
+    
+    renderBoard();
+    updateUI();
+}
+
+function restoreState(state) {
+    board = cloneBoard(state.board);
+    turn = state.turn;
+    timerBlack = state.timerBlack;
+    timerWhite = state.timerWhite;
+    gameActive = state.gameActive;
+    
+    updateTimerDOM(timerBlackEl, timerBlack);
+    updateTimerDOM(timerWhiteEl, timerWhite);
+}
+
+const EVAL_MAP = [
     [120, -20,  20,   5,   5,  20, -20, 120],
     [-20, -40,  -5,  -5,  -5,  -5, -40, -20],
     [ 20,  -5,  15,   3,   3,  15,  -5,  20],
