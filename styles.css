@@ -1512,6 +1512,39 @@ body.theme-neon .tile.tile-back {
     50% { transform: translateY(-10px); }
 }
 
+/* 操作方法ヘルプパネル */
+.help-box {
+    padding: 0.8rem;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 10px;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: #a2b0aa;
+    border: 1px solid var(--card-border);
+}
+.help-box ul {
+    list-style: none;
+    padding-left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.help-box li {
+    position: relative;
+    padding-left: 14px;
+}
+.help-box li::before {
+    content: "▪";
+    color: var(--primary-color);
+    font-size: 0.65rem;
+    position: absolute;
+    left: 0;
+    top: -1px;
+}
+.help-box strong {
+    color: #fff;
+}
+
 /* フッター */
 .app-footer {
     text-align: center;
