@@ -44,7 +44,9 @@ class SoundManager {
                 this.ctx = new (window.AudioContext || window.webkitAudioContext)();
             }
             if (this.ctx && this.ctx.state === 'suspended') {
-                this.ctx.resume().catch(err => {
+                this.ctx.resume().then(() => {
+                    console.log("AudioContext resumed successfully.");
+                }).catch(err => {
                     console.warn("Failed to resume AudioContext:", err);
                 });
             }
@@ -252,11 +254,26 @@ window.addEventListener("DOMContentLoaded", () => {
     // 初回のユーザーインタラクション時にAudioContextをアクティベートする
     const unlockAudio = () => {
         sounds.init();
+        
+        // 完全にアンロックするために無音のバッファを一瞬再生する
+        if (sounds.ctx) {
+            try {
+                const buffer = sounds.ctx.createBuffer(1, 1, 22050);
+                const source = sounds.ctx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(sounds.ctx.destination);
+                source.start(0);
+                console.log("AudioContext unlocked with silent buffer.");
+            } catch (e) {
+                console.warn("Failed to play silent buffer for unlocking:", e);
+            }
+        }
+
         const events = ['click', 'touchstart', 'mousedown', 'keydown'];
         events.forEach(e => document.removeEventListener(e, unlockAudio));
     };
     ['click', 'touchstart', 'mousedown', 'keydown'].forEach(e => {
-        document.addEventListener(e, unlockAudio, { passive: true });
+        document.addEventListener(e, unlockAudio);
     });
 });
 
@@ -354,7 +371,15 @@ function setupUIHandlers() {
     });
     btnPon.addEventListener("click", () => submitActionVote("pon"));
     btnChi.addEventListener("click", () => submitActionVote("chi"));
-    btnKan.addEventListener("click", () => submitActionVote("kan"));
+    btnKan.addEventListener("click", () => {
+        const state = localGameState;
+        if (state.currentTurn === mySeat && state.turnState === "tsumo") {
+            sounds.playAction();
+            declareAnkan();
+        } else {
+            submitActionVote("kan");
+        }
+    });
 
     // モーダル
     resultNextBtn.addEventListener("click", () => {
@@ -449,8 +474,7 @@ function startNewRoundPractice() {
     const tsumoTile = localGameState.wall.pop();
     localGameState.hands[localGameState.currentTurn].push(tsumoTile);
 
-    renderGame(localGameState);
-    checkTurnAction();
+    triggerPracticeNext();
 }
 
 function handleNextRoundPractice() {
@@ -842,6 +866,13 @@ function resetToLobby() {
 
 // --- ホスト・クライアントゲームループ制御 (通信対戦・練習戦共通) ---
 
+// --- 練習戦用の状態更新＆進行トリガー ---
+function triggerPracticeNext() {
+    renderGame(localGameState);
+    checkTurnAction();
+    runHostLogic();
+}
+
 function runHostLogic() {
     // 自分がホスト（ゲームマスター）のときに動く自動制御ロジック
     // COMのツモ・打牌、および全員の投票結果の集計を行う。
@@ -854,28 +885,63 @@ function runHostLogic() {
     if (state.turnState === "tsumo") {
         // ツモ状態
         if (currentTurnPlayer.isBot) {
+            const seat = state.currentTurn;
+            const hand = state.hands[seat];
+            const tsumoTile = hand[hand.length - 1];
+
+            // COMのツモアガリ判定
+            const agari = MahjongEngine.checkAgari(hand, state.melds[seat]);
+            if (agari) {
+                const bakaze = 1;
+                const jikaze = getJikazeVal(seat, state.oya);
+                const context = {
+                    isRiichi: state.riichiSeats.includes(seat) ? 1 : 0,
+                    isIppatsu: false,
+                    jikaze: jikaze,
+                    bakaze: bakaze,
+                    doraIndicators: state.doraIndicators,
+                    uraDoraIndicators: [],
+                    oyaSeat: state.oya,
+                    playerSeat: seat
+                };
+                const judge = MahjongEngine.judgeHand(hand, state.melds[seat], tsumoTile, true, context);
+                if (judge) {
+                    // COMのツモアガリ！
+                    setTimeout(() => {
+                        hostProcessAgari(seat, -1, true);
+                    }, 1000);
+                    return;
+                }
+            }
+
             // COMが手番の場合、思考して捨てる牌を決める
             setTimeout(() => {
-                const hand = state.hands[state.currentTurn];
                 const discardTile = MahjongEngine.comDecideDiscard(hand);
-                hostProcessDiscard(state.currentTurn, discardTile);
+                hostProcessDiscard(seat, discardTile);
             }, 1000); // リアルな間を作る
         }
     } else if (state.turnState === "discarded") {
         // 打牌直後、投票（ポン・ロン・パス）の集計
         // 参加している全プレイヤー（COM含む）が投票済みかチェック
         const votes = state.actionVotes || {};
-        const voters = Object.keys(votes).map(Number);
         
         // COMの自動投票処理（ホストが代行）
+        // 同期的にvotesを更新し、再帰呼び出しによるコールスタックの過多とデータの競合を防止する
+        let updated = false;
         state.players.forEach(p => {
-            if (p.isBot && !voters.includes(p.seat)) {
+            if (p.isBot && p.seat !== state.lastDiscardSeat && !votes[p.seat]) {
                 // COMの意思を判定
                 const vote = decideBotAction(p.seat, state.lastDiscard, state.lastDiscardSeat);
-                submitActionVoteLocal(p.seat, vote);
+                votes[p.seat] = vote;
+                updated = true;
             }
         });
 
+        if (updated) {
+            state.actionVotes = votes;
+        }
+
+        const voters = Object.keys(votes).map(Number);
         // 打牌したプレイヤー以外の残り3人の投票が集まったかチェック
         const activeSeats = state.players.map(p => p.seat).filter(seat => seat !== state.lastDiscardSeat);
         const allVoted = activeSeats.every(seat => voters.includes(seat));
@@ -935,6 +1001,23 @@ function checkTurnAction() {
                 }
             }
         }
+
+        // 3. 暗カン判定（手元の14枚の中に同種牌が4枚あるか）
+        let canAnkan = false;
+        const counts = {};
+        hand.forEach(t => {
+            const norm = MahjongEngine.normalizeTile(t);
+            counts[norm] = (counts[norm] || 0) + 1;
+        });
+        for (const norm in counts) {
+            if (counts[norm] === 4) {
+                canAnkan = true;
+                break;
+            }
+        }
+        if (canAnkan) {
+            possibleActions.kan = true;
+        }
         
         // UI更新
         updateActionPanelUI();
@@ -971,8 +1054,30 @@ function checkTurnAction() {
             possibleActions.kan = true;
         }
 
+        // 4. チー判定（上家からの打牌のみ）
+        const isJoucha = ((discardSeat + 1) % 4 === seat);
+        const suit = MahjongEngine.getTileSuit(discardTile);
+        if (isJoucha && suit !== 'z') {
+            const val = MahjongEngine.getTileValue(discardTile);
+            const normHand = hand.map(MahjongEngine.normalizeTile);
+            
+            // 捨て牌と同じスートの牌を抽出
+            const sameSuitVals = normHand
+                .filter(t => MahjongEngine.getTileSuit(t) === suit)
+                .map(MahjongEngine.getTileValue);
+                
+            // 組み合わせチェック
+            const hasA = sameSuitVals.includes(val - 2) && sameSuitVals.includes(val - 1);
+            const hasB = sameSuitVals.includes(val - 1) && sameSuitVals.includes(val + 1);
+            const hasC = sameSuitVals.includes(val + 1) && sameSuitVals.includes(val + 2);
+            
+            if (hasA || hasB || hasC) {
+                possibleActions.chi = true;
+            }
+        }
+
         // 何かアクションができる場合のみ、パネルを表示して「パス」も選べるようにする
-        if (possibleActions.ron || possibleActions.pon || possibleActions.kan) {
+        if (possibleActions.ron || possibleActions.pon || possibleActions.kan || possibleActions.chi) {
             updateActionPanelUI();
         } else {
             // 何もできなければ自動的に「パス」を投票
@@ -1111,7 +1216,7 @@ function declareRiichi() {
 
     // 画面再描画
     if (gameMode === "practice") {
-        renderGame(localGameState);
+        triggerPracticeNext();
     } else {
         roomRef.update({
             scores: localGameState.scores,
@@ -1119,6 +1224,98 @@ function declareRiichi() {
             riichiSeats: localGameState.riichiSeats
         });
     }
+}
+
+/**
+ * 暗カン宣言処理
+ */
+function declareAnkan() {
+    const seat = mySeat;
+    const state = localGameState;
+    const hand = state.hands[seat];
+
+    const counts = {};
+    hand.forEach(t => {
+        const norm = MahjongEngine.normalizeTile(t);
+        counts[norm] = (counts[norm] || 0) + 1;
+    });
+
+    let kanNormTile = null;
+    for (const norm in counts) {
+        if (counts[norm] === 4) {
+            kanNormTile = norm;
+            break;
+        }
+    }
+
+    if (!kanNormTile) return;
+
+    let removedTiles = [];
+    for (let i = hand.length - 1; i >= 0; i--) {
+        if (MahjongEngine.normalizeTile(hand[i]) === kanNormTile) {
+            removedTiles.push(hand[i]);
+            hand.splice(i, 1);
+        }
+    }
+
+    const meldObj = {
+        type: "ankan",
+        tiles: removedTiles,
+        open: false
+    };
+    state.melds[seat].push(meldObj);
+
+    const tsumoTile = state.wall.pop();
+    hand.push(tsumoTile);
+
+    if (state.wall.length > 0) {
+        state.doraIndicators.push(state.wall.pop());
+    }
+
+    triggerCutin("カン");
+
+    possibleActions = { chi: false, pon: false, kan: false, riichi: false, tsumo: false, ron: false };
+    updateActionPanelUI();
+
+    if (gameMode === "practice") {
+        triggerPracticeNext();
+    } else {
+        roomRef.update({
+            hands: state.hands,
+            melds: state.melds,
+            wall: state.wall,
+            doraIndicators: state.doraIndicators,
+            currentTurn: seat,
+            turnState: "tsumo",
+            actionVotes: {}
+        });
+    }
+}
+
+/**
+ * チー可能な手牌の組み合わせを探索
+ */
+function findChiCombination(hand, discardTile) {
+    const suit = MahjongEngine.getTileSuit(discardTile);
+    const val = MahjongEngine.getTileValue(discardTile);
+    const normHand = hand.map(MahjongEngine.normalizeTile);
+
+    const candidates = [
+        { needed: [val - 2, val - 1] },
+        { needed: [val - 1, val + 1] },
+        { needed: [val + 1, val + 2] }
+    ];
+
+    for (const cand of candidates) {
+        const tile1Norm = suit + cand.needed[0];
+        const tile2Norm = suit + cand.needed[1];
+        if (normHand.includes(tile1Norm) && normHand.includes(tile2Norm)) {
+            const tile1 = hand.find(t => MahjongEngine.normalizeTile(t) === tile1Norm);
+            const tile2 = hand.find(t => MahjongEngine.normalizeTile(t) === tile2Norm);
+            return [tile1, tile2];
+        }
+    }
+    return null;
 }
 
 // --- ホスト進行ロジックの詳細実装 ---
@@ -1155,8 +1352,7 @@ function hostProcessDiscard(discardSeat, tile) {
     state.actionVotes = {}; // 投票リセット
 
     if (gameMode === "practice") {
-        renderGame(state);
-        runHostLogic();
+        triggerPracticeNext();
     } else {
         roomRef.update({
             hands: state.hands,
@@ -1185,8 +1381,6 @@ function hostResolveVotes() {
     });
 
     if (ronSeats.length > 0) {
-        // 頭ハネ（放銃者に一番席順が近い人を優先）
-        // discardSeat から反時計回りに見て一番近い人
         const thrower = state.lastDiscardSeat;
         ronSeats.sort((a, b) => {
             const distA = (a - thrower + 4) % 4;
@@ -1199,11 +1393,14 @@ function hostResolveVotes() {
         return;
     }
 
-    // 2. ポンの解決
+    // 2. ポン・カンの解決
     let ponSeat = -1;
+    let kanSeat = -1;
     state.players.forEach(p => {
         if (votes[p.seat] === "pon") {
             ponSeat = p.seat;
+        } else if (votes[p.seat] === "kan") {
+            kanSeat = p.seat;
         }
     });
 
@@ -1211,8 +1408,25 @@ function hostResolveVotes() {
         hostProcessPon(ponSeat, state.lastDiscardSeat, state.lastDiscard);
         return;
     }
+    if (kanSeat !== -1) {
+        hostProcessDaiminkan(kanSeat, state.lastDiscardSeat, state.lastDiscard);
+        return;
+    }
 
-    // 3. 全員がパスの場合：手番を次に進める
+    // 3. チーの解決
+    let chiSeat = -1;
+    state.players.forEach(p => {
+        if (votes[p.seat] === "chi") {
+            chiSeat = p.seat;
+        }
+    });
+
+    if (chiSeat !== -1) {
+        hostProcessChi(chiSeat, state.lastDiscardSeat, state.lastDiscard);
+        return;
+    }
+
+    // 4. 全員がパスの場合：手番を次に進める
     hostAdvanceTurn();
 }
 
@@ -1256,21 +1470,115 @@ function hostProcessPon(ponSeat, discardSeat, tile) {
     triggerCutin("ポン");
 
     if (gameMode === "practice") {
-        renderGame(state);
-        // COMがポンした場合は打牌を促す
-        if (state.players[ponSeat].isBot) {
-            setTimeout(() => {
-                const botHand = state.hands[ponSeat];
-                const discardTile = MahjongEngine.comDecideDiscard(botHand);
-                hostProcessDiscard(ponSeat, discardTile);
-            }, 1000);
-        }
+        triggerPracticeNext();
     } else {
         roomRef.update({
             hands: state.hands,
             discards: state.discards,
             melds: state.melds,
             currentTurn: ponSeat,
+            turnState: "tsumo",
+            actionVotes: {}
+        });
+    }
+}
+
+/**
+ * チーの成立処理
+ */
+function hostProcessChi(chiSeat, discardSeat, tile) {
+    const state = localGameState;
+    sounds.playAction();
+
+    state.discards[discardSeat].pop();
+
+    const hand = state.hands[chiSeat];
+    const pair = findChiCombination(hand, tile);
+    if (!pair) {
+        hostAdvanceTurn();
+        return;
+    }
+
+    MahjongEngine.removeTile(hand, pair[0]);
+    MahjongEngine.removeTile(hand, pair[1]);
+
+    const sortedMeldTiles = [tile, pair[0], pair[1]].sort(MahjongEngine.compareTiles);
+    const meldObj = {
+        type: "chi",
+        tiles: sortedMeldTiles,
+        open: true
+    };
+    state.melds[chiSeat].push(meldObj);
+
+    state.currentTurn = chiSeat;
+    state.turnState = "tsumo";
+    state.actionVotes = {};
+    
+    triggerCutin("チー");
+
+    if (gameMode === "practice") {
+        triggerPracticeNext();
+    } else {
+        roomRef.update({
+            hands: state.hands,
+            discards: state.discards,
+            melds: state.melds,
+            currentTurn: chiSeat,
+            turnState: "tsumo",
+            actionVotes: {}
+        });
+    }
+}
+
+/**
+ * 大明槓の成立処理
+ */
+function hostProcessDaiminkan(kanSeat, discardSeat, tile) {
+    const state = localGameState;
+    sounds.playAction();
+
+    state.discards[discardSeat].pop();
+
+    const hand = state.hands[kanSeat];
+    const normTile = MahjongEngine.normalizeTile(tile);
+    let removed = 0;
+    for (let i = hand.length - 1; i >= 0; i--) {
+        if (MahjongEngine.normalizeTile(hand[i]) === normTile && removed < 3) {
+            hand.splice(i, 1);
+            removed++;
+        }
+    }
+
+    const meldObj = {
+        type: "daiminkan",
+        tiles: [tile, tile, tile, tile],
+        open: true
+    };
+    state.melds[kanSeat].push(meldObj);
+
+    const tsumoTile = state.wall.pop();
+    hand.push(tsumoTile);
+
+    if (state.wall.length > 0) {
+        state.doraIndicators.push(state.wall.pop());
+    }
+
+    state.currentTurn = kanSeat;
+    state.turnState = "tsumo";
+    state.actionVotes = {};
+
+    triggerCutin("カン");
+
+    if (gameMode === "practice") {
+        triggerPracticeNext();
+    } else {
+        roomRef.update({
+            hands: state.hands,
+            discards: state.discards,
+            melds: state.melds,
+            wall: state.wall,
+            doraIndicators: state.doraIndicators,
+            currentTurn: kanSeat,
             turnState: "tsumo",
             actionVotes: {}
         });
@@ -1298,46 +1606,8 @@ function hostAdvanceTurn() {
     const tsumoTile = state.wall.pop();
     state.hands[nextTurn].push(tsumoTile);
 
-    // ツモした時のアガリ判定 (COM用)
     if (gameMode === "practice") {
-        renderGame(state);
-        
-        // COMのツモ番制御
-        if (state.players[nextTurn].isBot) {
-            // ツモアガリチェック
-            const agari = MahjongEngine.checkAgari(state.hands[nextTurn], state.melds[nextTurn]);
-            if (agari) {
-                const bakaze = 1;
-                const jikaze = getJikazeVal(nextTurn, state.oya);
-                const context = {
-                    isRiichi: state.riichiSeats.includes(nextTurn) ? 1 : 0,
-                    isIppatsu: false,
-                    jikaze: jikaze,
-                    bakaze: bakaze,
-                    doraIndicators: state.doraIndicators,
-                    uraDoraIndicators: [],
-                    oyaSeat: state.oya,
-                    playerSeat: nextTurn
-                };
-                const judge = MahjongEngine.judgeHand(state.hands[nextTurn], state.melds[nextTurn], tsumoTile, true, context);
-                if (judge) {
-                    // COMのツモアガリ！
-                    setTimeout(() => {
-                        hostProcessAgari(nextTurn, -1, true);
-                    }, 1000);
-                    return;
-                }
-            }
-
-            // 通常のCOM打牌
-            setTimeout(() => {
-                const discardTile = MahjongEngine.comDecideDiscard(state.hands[nextTurn]);
-                hostProcessDiscard(nextTurn, discardTile);
-            }, 1000);
-        } else {
-            // 人間のツモ番：ツモ、リーチ、アガリチェックへ
-            checkTurnAction();
-        }
+        triggerPracticeNext();
     } else {
         // オンライン
         roomRef.update({
@@ -1640,14 +1910,17 @@ function renderGame(state) {
         }
 
         // 手元の13枚
+        const isRiichi = state.riichiSeats.includes(actualSeatIndex);
         handToRender.forEach((t, tileIdx) => {
-            // 自分以外の手牌は裏向き
             const tileEl = createTileElement(t, !isMe);
             if (isMe && state.turnState === "tsumo" && state.currentTurn === mySeat) {
-                // 自分のターンならクリックで打牌可能にする
-                tileEl.addEventListener("click", () => {
-                    hostProcessDiscard(mySeat, t);
-                });
+                if (!isRiichi) {
+                    tileEl.addEventListener("click", () => {
+                        hostProcessDiscard(mySeat, t);
+                    });
+                } else {
+                    tileEl.classList.add("tile-disabled");
+                }
             }
             handContainer.appendChild(tileEl);
         });
@@ -1691,11 +1964,13 @@ function renderGame(state) {
             const groupEl = document.createElement("div");
             groupEl.className = "meld-group";
             m.tiles.forEach((t, idx) => {
-                const tileEl = createTileElement(t, false);
+                const isAnkanBack = (!m.open && m.type === "ankan" && (idx === 0 || idx === 3));
+                const tileEl = createTileElement(t, isAnkanBack);
                 tileEl.classList.add("meld-tile");
-                // ポンした牌の一部を横向きにする
-                if (idx === 0) {
-                    tileEl.classList.add("meld-tile-sideways");
+                if (m.open) {
+                    if (idx === 0) {
+                        tileEl.classList.add("meld-tile-sideways");
+                    }
                 }
                 groupEl.appendChild(tileEl);
             });
@@ -1743,28 +2018,51 @@ function createTileElement(tile, isBack) {
     } else if (suit === 'p') {
         // 筒子: 丸ドットの描画
         inner.classList.add(`p-${val}`);
-        for (let i = 0; i < val; i++) {
+        if (val === 1) {
             const dot = document.createElement("div");
             dot.className = "pin-dot";
-            // 筒子の模様のカラーバリエーション
-            if (i % 3 === 0) dot.classList.add("red");
-            if (i % 3 === 1) dot.classList.add("green");
             inner.appendChild(dot);
+        } else {
+            const dotColors = {
+                2: ["blue", "blue"],
+                3: ["blue", "red", "blue"],
+                4: ["blue", "blue", "blue", "blue"],
+                5: ["blue", "blue", "red", "blue", "blue"],
+                6: ["blue", "blue", "red", "red", "red", "red"],
+                7: ["blue", "blue", "blue", "red", "red", "red", "red"],
+                8: ["blue", "blue", "blue", "blue", "red", "red", "red", "red"],
+                9: ["blue", "blue", "blue", "red", "red", "red", "blue", "blue", "blue"]
+            };
+            const colors = dotColors[val] || [];
+            colors.forEach((color, idx) => {
+                const dot = document.createElement("div");
+                dot.className = `pin-dot color-${color} d-${idx + 1}`;
+                inner.appendChild(dot);
+            });
         }
     } else if (suit === 's') {
         // 索子: 竹の棒の描画
         if (val === 1) {
-            // 1索は鳳凰または鳥の絵文字で代用
             inner.classList.add("tile-suit-s-1");
             inner.textContent = "🦚";
         } else {
             inner.classList.add(`s-${val}`);
-            for (let i = 0; i < val; i++) {
+            const stickColors = {
+                2: ["green", "green"],
+                3: ["green", "green", "green"],
+                4: ["green", "green", "green", "green"],
+                5: ["green", "green", "red", "green", "green"],
+                6: ["green", "green", "green", "green", "green", "green"],
+                7: ["red", "green", "green", "green", "green", "green", "green"],
+                8: ["green", "green", "green", "green", "green", "green", "green", "green"],
+                9: ["green", "green", "green", "red", "red", "red", "green", "green", "green"]
+            };
+            const colors = stickColors[val] || [];
+            colors.forEach((color, idx) => {
                 const stick = document.createElement("div");
-                stick.className = "bamboo-stick";
-                if (i % 2 === 0) stick.classList.add("red");
+                stick.className = `bamboo-stick color-${color} st-${idx + 1}`;
                 inner.appendChild(stick);
-            }
+            });
         }
     } else if (suit === 'z') {
         // 字牌

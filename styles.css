@@ -525,8 +525,8 @@ body.theme-neon .mahjong-table {
 
 /* 中央ダッシュボード (Octagon or Circle) */
 .center-dashboard {
-    width: 170px;
-    height: 170px;
+    width: 140px;
+    height: 140px;
     background: #151e1b;
     border: 4px solid #2a3833;
     box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,0,0,0.8);
@@ -540,8 +540,8 @@ body.theme-neon .mahjong-table {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 0.8rem;
-    gap: 0.4rem;
+    padding: 0.5rem;
+    gap: 0.2rem;
 }
 
 body.theme-neon .center-dashboard {
@@ -555,7 +555,7 @@ body.theme-neon .center-dashboard {
 }
 
 .current-kyoku {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     font-weight: 800;
     color: #fff;
     letter-spacing: 1px;
@@ -608,10 +608,10 @@ body.theme-neon .center-dashboard {
     display: flex;
     width: 100%;
     justify-content: space-between;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: #a2b0aa;
     border-top: 1px solid rgba(255,255,255,0.05);
-    padding-top: 0.4rem;
+    padding-top: 0.2rem;
 }
 
 .wall-remain {
@@ -754,16 +754,98 @@ body.theme-neon .center-dashboard {
 /* 捨て牌（河 / River） */
 .river-container {
     display: grid;
-    grid-template-columns: repeat(6, var(--tile-width));
-    grid-auto-rows: var(--tile-height);
+    grid-template-columns: repeat(6, 28px);
+    grid-auto-rows: 38px;
     gap: 2px;
     background: rgba(0, 0, 0, 0.15);
     padding: 4px;
     border-radius: 6px;
-    min-width: 250px;
-    min-height: 170px;
+    min-width: 188px;
+    min-height: 122px;
     border: 1px dashed rgba(255, 255, 255, 0.05);
 }
+
+.river-container .tile {
+    width: 28px !important;
+    height: 38px !important;
+    padding: 3px 2px !important;
+    font-size: 0.7rem !important;
+    border-width: 1px !important;
+    box-shadow: 0 2px 0 #b3b3b3, 0 3px 3px rgba(0,0,0,0.4) !important;
+}
+
+.river-container .tile.riichi-discard {
+    margin: 0;
+}
+
+.river-container .tile-suit-m .tile-val {
+    font-size: 0.9rem !important;
+}
+.river-container .tile-suit-m .tile-kanji {
+    font-size: 0.75rem !important;
+    margin-top: -1px !important;
+}
+.river-container .tile-suit-s-1 {
+    font-size: 1.3rem !important;
+}
+.river-container .tile-suit-z {
+    font-size: 1.2rem !important;
+}
+
+/* 河の小さな牌用の筒子（ピンズ）スタイル調整 */
+.river-container .pin-dot {
+    width: 6px !important;
+    height: 6px !important;
+}
+.river-container .tile-suit-p {
+    width: 90% !important;
+    height: 90% !important;
+}
+
+/* 1筒も河用サイズに縮小 */
+.river-container .tile-suit-p.p-1 .pin-dot {
+    width: 18px !important;
+    height: 18px !important;
+}
+.river-container .tile-suit-p.p-1 .pin-dot::after {
+    width: 7px !important;
+    height: 7px !important;
+    border-width: 1.2px !important;
+}
+.river-container .tile-suit-p.p-2 { gap: 4px !important; }
+.river-container .tile-suit-p.p-3 { gap: 0.5px !important; }
+.river-container .tile-suit-p.p-4 { gap: 4px 6px !important; }
+.river-container .tile-suit-p.p-5 { gap: 0.5px !important; }
+.river-container .tile-suit-p.p-6 { gap: 1px 6px !important; }
+.river-container .tile-suit-p.p-7 { gap: 0.5px !important; }
+.river-container .tile-suit-p.p-7 .pin-dot.d-4 { margin-left: 0.8px; }
+.river-container .tile-suit-p.p-7 .pin-dot.d-5 { margin-right: 0.8px; }
+.river-container .tile-suit-p.p-7 .pin-dot.d-6 { margin-left: 0.8px; }
+.river-container .tile-suit-p.p-7 .pin-dot.d-7 { margin-right: 0.8px; }
+.river-container .tile-suit-p.p-8 { gap: 1px 6px !important; }
+.river-container .tile-suit-p.p-9 { gap: 1px 3px !important; }
+.river-container .tile-suit-p.p-3 .pin-dot,
+.river-container .tile-suit-p.p-5 .pin-dot,
+.river-container .tile-suit-p.p-7 .pin-dot,
+.river-container .tile-suit-p.p-8 .pin-dot,
+.river-container .tile-suit-p.p-9 .pin-dot {
+    width: 5.5px !important;
+    height: 5.5px !important;
+}
+
+/* 河の小さな牌用の索子（ソーズ）スタイル調整 */
+.river-container .tile-suit-s .bamboo-stick {
+    width: 3px !important;
+    height: 9px !important;
+}
+.river-container .tile-suit-s.s-2 { gap: 4px !important; }
+.river-container .tile-suit-s.s-3 { gap: 1px 3px !important; }
+.river-container .tile-suit-s.s-4 { gap: 2px 6px !important; }
+.river-container .tile-suit-s.s-5 { gap: 0.5px !important; }
+.river-container .tile-suit-s.s-6 { gap: 2px 2px !important; }
+.river-container .tile-suit-s.s-7 { gap: 1px 2px !important; }
+.river-container .tile-suit-s.s-8 { gap: 2px 0.5px !important; }
+.river-container .tile-suit-s.s-9 { gap: 1px 2px !important; }
 
 /* 3D牌 (Premium Tile Style) */
 .tile {
@@ -864,57 +946,271 @@ body.theme-neon .tile.tile-back {
 }
 
 /* 筒子 (Pins) */
-.tile-suit-p {
-    display: grid;
-    gap: 2px;
-    width: 85%;
-    height: 85%;
-    justify-content: center;
-    align-content: center;
+.tile-inner.tile-suit-p {
+    width: 85% !important;
+    height: 85% !important;
+    display: block !important;
+    position: relative;
 }
 .pin-dot {
-    width: 9.5px;
-    height: 9.5px;
     border-radius: 50%;
-    background: #0984e3; /* 青 */
     box-shadow: inset -1px -1px 2px rgba(0,0,0,0.3), 0 0 1px rgba(0,0,0,0.5);
+    background: #0984e3;
 }
-.pin-dot.red { background: var(--accent-red); }
-.pin-dot.green { background: #2ed573; }
+.pin-dot.color-blue { background: #0984e3; }
+.pin-dot.color-red { background: var(--accent-red); }
 
 /* 1筒 (特大ドット) の特別スタイル */
 .tile-suit-p.p-1 {
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: center;
 }
 .tile-suit-p.p-1 .pin-dot {
-    width: 26px;
-    height: 26px;
-    background: radial-gradient(circle, #e74c3c 0%, #c0392b 100%);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset -1px -1px 2px rgba(0,0,0,0.3);
-    border: 1px solid rgba(0,0,0,0.2);
+    width: 28px;
+    height: 28px;
+    background: radial-gradient(circle, #e74c3c 30%, #c0392b 70%);
+    border: 1px solid rgba(0,0,0,0.3);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset -1px -1px 3px rgba(0,0,0,0.4);
+    position: relative;
+}
+.tile-suit-p.p-1 .pin-dot::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px dashed #f1c40f;
+}
+
+.tile-suit-p.p-2 {
+    display: grid !important;
+    grid-template-rows: repeat(2, 1fr);
+    justify-items: center;
+    align-content: center;
+    gap: 8px;
+}
+.tile-suit-p.p-2 .pin-dot {
+    width: 10.5px;
+    height: 10.5px;
+}
+
+.tile-suit-p.p-3 {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px;
+}
+.tile-suit-p.p-3 .pin-dot {
+    width: 9px;
+    height: 9px;
+}
+.tile-suit-p.p-3 .pin-dot.d-1 { grid-column: 1; grid-row: 1; }
+.tile-suit-p.p-3 .pin-dot.d-2 { grid-column: 2; grid-row: 2; }
+.tile-suit-p.p-3 .pin-dot.d-3 { grid-column: 3; grid-row: 3; }
+
+.tile-suit-p.p-4 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 8px 12px;
+    justify-items: center;
+    align-content: center;
+}
+.tile-suit-p.p-4 .pin-dot {
+    width: 9.5px;
+    height: 9.5px;
+}
+
+.tile-suit-p.p-5 {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px;
+    align-content: center;
+}
+.tile-suit-p.p-5 .pin-dot {
+    width: 9px;
+    height: 9px;
+}
+.tile-suit-p.p-5 .pin-dot.d-1 { grid-column: 1; grid-row: 1; }
+.tile-suit-p.p-5 .pin-dot.d-2 { grid-column: 3; grid-row: 1; }
+.tile-suit-p.p-5 .pin-dot.d-3 { grid-column: 2; grid-row: 2; }
+.tile-suit-p.p-5 .pin-dot.d-4 { grid-column: 1; grid-row: 3; }
+.tile-suit-p.p-5 .pin-dot.d-5 { grid-column: 3; grid-row: 3; }
+
+.tile-suit-p.p-6 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 3px 10px;
+    justify-items: center;
+    align-content: center;
+}
+.tile-suit-p.p-6 .pin-dot {
+    width: 9px;
+    height: 9px;
+}
+
+.tile-suit-p.p-7 {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    gap: 1px;
+}
+.tile-suit-p.p-7 .pin-dot {
+    width: 8px;
+    height: 8px;
+}
+.tile-suit-p.p-7 .pin-dot.d-1 { grid-column: 1; grid-row: 1; }
+.tile-suit-p.p-7 .pin-dot.d-2 { grid-column: 2; grid-row: 2; }
+.tile-suit-p.p-7 .pin-dot.d-3 { grid-column: 3; grid-row: 3; }
+.tile-suit-p.p-7 .pin-dot.d-4 { grid-column: 1; grid-row: 5; margin-left: 2px; }
+.tile-suit-p.p-7 .pin-dot.d-5 { grid-column: 3; grid-row: 5; margin-right: 2px; }
+.tile-suit-p.p-7 .pin-dot.d-6 { grid-column: 1; grid-row: 6; margin-left: 2px; }
+.tile-suit-p.p-7 .pin-dot.d-7 { grid-column: 3; grid-row: 6; margin-right: 2px; }
+
+.tile-suit-p.p-8 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 2px 10px;
+    justify-items: center;
+    align-content: center;
+}
+.tile-suit-p.p-8 .pin-dot {
+    width: 8.5px;
+    height: 8.5px;
+}
+
+.tile-suit-p.p-9 {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 3px 6px;
+    justify-items: center;
+    align-content: center;
+}
+.tile-suit-p.p-9 .pin-dot {
+    width: 8.5px;
+    height: 8.5px;
 }
 
 /* 索子 (Bamboos) */
 .tile-suit-s {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 2px;
-    justify-content: center;
-    align-items: center;
-    width: 85%;
-    height: 85%;
+    width: 85% !important;
+    height: 85% !important;
+    display: block !important;
 }
 .bamboo-stick {
-    width: 5.5px;
-    height: 15px;
+    width: 5px;
+    height: 14px;
     background: #27ae60;
-    border-radius: 2px;
+    border-radius: 1.5px;
     box-shadow: inset -1px -1px 1px rgba(0,0,0,0.2), 0 0 1px rgba(0,0,0,0.5);
 }
-.bamboo-stick.red { background: var(--accent-red); }
+.bamboo-stick.color-green { background: #27ae60; }
+.bamboo-stick.color-red { background: var(--accent-red); }
+
+.tile-suit-s.s-2 {
+    display: grid !important;
+    grid-template-rows: repeat(2, 1fr);
+    justify-items: center;
+    align-content: center;
+    gap: 8px;
+}
+
+.tile-suit-s.s-3 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 4px 6px;
+    justify-items: center;
+    align-content: center;
+}
+.tile-suit-s.s-3 .bamboo-stick.st-1 {
+    grid-column: 1 / span 2;
+    grid-row: 1;
+}
+
+.tile-suit-s.s-4 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 4px 10px;
+    justify-items: center;
+    align-content: center;
+}
+
+.tile-suit-s.s-5 {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 1px;
+    align-content: center;
+}
+.tile-suit-s.s-5 .bamboo-stick.st-1 { grid-column: 1; grid-row: 1; }
+.tile-suit-s.s-5 .bamboo-stick.st-2 { grid-column: 3; grid-row: 1; }
+.tile-suit-s.s-5 .bamboo-stick.st-3 { grid-column: 2; grid-row: 2; }
+.tile-suit-s.s-5 .bamboo-stick.st-4 { grid-column: 1; grid-row: 3; }
+.tile-suit-s.s-5 .bamboo-stick.st-5 { grid-column: 3; grid-row: 3; }
+
+.tile-suit-s.s-6 {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 4px 4px;
+    justify-items: center;
+    align-content: center;
+}
+
+.tile-suit-s.s-7 {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px 4px;
+    justify-items: center;
+    align-content: center;
+}
+.tile-suit-s.s-7 .bamboo-stick.st-1 {
+    grid-column: 2;
+    grid-row: 1;
+}
+.tile-suit-s.s-7 .bamboo-stick.st-2 { grid-column: 1; grid-row: 2; }
+.tile-suit-s.s-7 .bamboo-stick.st-3 { grid-column: 2; grid-row: 2; }
+.tile-suit-s.s-7 .bamboo-stick.st-4 { grid-column: 3; grid-row: 2; }
+.tile-suit-s.s-7 .bamboo-stick.st-5 { grid-column: 1; grid-row: 3; }
+.tile-suit-s.s-7 .bamboo-stick.st-6 { grid-column: 2; grid-row: 3; }
+.tile-suit-s.s-7 .bamboo-stick.st-7 { grid-column: 3; grid-row: 3; }
+
+.tile-suit-s.s-8 {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 4px 1px;
+    justify-items: center;
+    align-content: center;
+}
+.tile-suit-s.s-8 .bamboo-stick.st-1 { transform: rotate(20deg); }
+.tile-suit-s.s-8 .bamboo-stick.st-2 { transform: rotate(-20deg); }
+.tile-suit-s.s-8 .bamboo-stick.st-3 { transform: rotate(20deg); }
+.tile-suit-s.s-8 .bamboo-stick.st-4 { transform: rotate(-20deg); }
+.tile-suit-s.s-8 .bamboo-stick.st-5 { transform: rotate(-20deg); }
+.tile-suit-s.s-8 .bamboo-stick.st-6 { transform: rotate(20deg); }
+.tile-suit-s.s-8 .bamboo-stick.st-7 { transform: rotate(-20deg); }
+.tile-suit-s.s-8 .bamboo-stick.st-8 { transform: rotate(20deg); }
+
+.tile-suit-s.s-9 {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px 4px;
+    justify-items: center;
+    align-content: center;
+}
 
 /* 1索用の鳥アイコン代替 */
 .tile-suit-s-1 {
@@ -929,19 +1225,18 @@ body.theme-neon .tile.tile-back {
     font-family: 'Noto Sans JP', sans-serif;
     text-shadow: 0 0 0.5px currentColor;
 }
-.tile-suit-z.z-ton { color: #000; } /* 東 */
-.tile-suit-z.z-nan { color: #000; } /* 南 */
-.tile-suit-z.z-sha { color: #000; } /* 西 */
-.tile-suit-z.z-pei { color: #000; } /* 北 */
+.tile-suit-z.z-ton { color: #000; }
+.tile-suit-z.z-nan { color: #000; }
+.tile-suit-z.z-sha { color: #000; }
+.tile-suit-z.z-pei { color: #000; }
 .tile-suit-z.z-haku {
-    width: 75%;
-    height: 75%;
-    border: 3.5px solid #0984e3;
-    border-radius: 3px;
-    background: rgba(9, 132, 227, 0.05);
-} /* 白 */
-.tile-suit-z.z-hatsu { color: #27ae60; text-shadow: 0 0 0.5px #27ae60; } /* 發 */
-.tile-suit-z.z-chun { color: var(--accent-red); text-shadow: 0 0 0.5px var(--accent-red); } /* 中 */
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+}
+.tile-suit-z.z-hatsu { color: #27ae60; text-shadow: 0 0 0.5px #27ae60; }
+.tile-suit-z.z-chun { color: var(--accent-red); text-shadow: 0 0 0.5px var(--accent-red); }
 
 /* 赤ドラ (Red Dora Glowing Effect) */
 .tile.red-dora {
@@ -1228,6 +1523,14 @@ body.theme-neon .tile.tile-back {
     border-top: 1px solid var(--card-border);
     margin-top: auto;
     z-index: 10;
+}
+
+.tile-disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+    pointer-events: none;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
 /* レスポンシブ調整 */
