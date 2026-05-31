@@ -629,7 +629,7 @@ body.theme-neon .center-dashboard {
     flex-direction: column;
     align-items: center;
     gap: 4px;
-    z-index: 5;
+    z-index: 30; /* 卓の枠や影より手前に表示してクリックを可能にする */
 }
 
 /* 下 (BOTTOM - 自分) */
@@ -642,7 +642,7 @@ body.theme-neon .center-dashboard {
 
 /* 右 (RIGHT) - 90度反時計回り (実際には上向きに並べるか、回転させる) */
 .seat-right {
-    right: -15px;
+    right: -50px;
     top: 50%;
     transform: translateY(-50%) rotate(-90deg);
     width: 320px;
@@ -658,7 +658,7 @@ body.theme-neon .center-dashboard {
 
 /* 左 (LEFT) - 90度時計回り */
 .seat-left {
-    left: -15px;
+    left: -50px;
     top: 50%;
     transform: translateY(-50%) rotate(90deg);
     width: 320px;
@@ -1596,13 +1596,3 @@ body.theme-neon .tile.tile-back {
     }
 }
 
-/* 左右の捨て牌と情報カードが中央ダッシュボードと重なるのを防ぐための調整 */
-.seat-left .river-container,
-.seat-left .player-info-card {
-    transform: translateY(40px);
-}
-
-.seat-right .river-container,
-.seat-right .player-info-card {
-    transform: translateY(40px);
-}
