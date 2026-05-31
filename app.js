@@ -59,6 +59,7 @@ class SoundManager {
         if (this.muted) return;
         this.init();
         const ctx = this.ctx;
+        if (!ctx) return;
         
         // 打牌音: コツッという石の打撃音
         const osc = ctx.createOscillator();
@@ -96,6 +97,7 @@ class SoundManager {
         if (this.muted) return;
         this.init();
         const ctx = this.ctx;
+        if (!ctx) return;
         
         // アクション決定音（ピピッ）
         const osc1 = ctx.createOscillator();
@@ -122,6 +124,7 @@ class SoundManager {
         if (this.muted) return;
         this.init();
         const ctx = this.ctx;
+        if (!ctx) return;
         
         // アガリファンファーレ (明るい和音)
         const notes = [523.25, 659.25, 783.99, 1046.50]; // ド・ミ・ソ・ド
@@ -442,6 +445,7 @@ function startPracticeGame() {
 }
 
 function startNewRoundPractice() {
+    localGameState.status = "playing"; // 状態をプレイ中に戻す
     const akaDora = localGameState.rules.akaDora;
     localGameState.wall = MahjongEngine.createWall(akaDora);
     
@@ -922,8 +926,13 @@ function runHostLogic() {
             // COMが手番の場合、思考して捨てる牌を決める
             const currentKyoku = state.kyoku;
             const currentHonba = state.honba;
+            const currentTurnState = state.turnState;
             setTimeout(() => {
-                if (localGameState.kyoku !== currentKyoku || localGameState.honba !== currentHonba || localGameState.status !== "playing") {
+                if (localGameState.kyoku !== currentKyoku || 
+                    localGameState.honba !== currentHonba || 
+                    localGameState.status !== "playing" ||
+                    localGameState.turnState !== currentTurnState ||
+                    localGameState.currentTurn !== seat) {
                     return;
                 }
                 const discardTile = MahjongEngine.comDecideDiscard(hand);
@@ -1877,12 +1886,12 @@ function hostProcessAgari(winnerSeat, throwerSeat, isTsumo) {
     const currentKyoku = state.kyoku;
     const currentHonba = state.honba;
     if (gameMode === "practice") {
-        localGameState = { ...localGameState, ...payload };
         // ロン/ツモ演出のアニメーション待機
         setTimeout(() => {
             if (localGameState.kyoku !== currentKyoku || localGameState.honba !== currentHonba) {
                 return;
             }
+            localGameState = { ...localGameState, ...payload };
             showRoundResultModal(localGameState);
         }, 1200);
     } else {
