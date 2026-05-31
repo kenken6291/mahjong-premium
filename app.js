@@ -947,6 +947,12 @@ function runHostLogic() {
         const allVoted = activeSeats.every(seat => voters.includes(seat));
 
         if (allVoted) {
+            // 二重処理を防止するために即座に状態を resolving へ遷移してロックする
+            state.turnState = "resolving";
+            if (gameMode === "online" && roomRef) {
+                roomRef.child("turnState").set("resolving");
+            }
+            
             // 投票結果の集計とアクション実行
             setTimeout(() => {
                 hostResolveVotes();
@@ -1163,7 +1169,7 @@ function decideBotAction(botSeat, discardTile, discardSeat) {
             oyaSeat: state.oya,
             playerSeat: botSeat
         };
-        const judge = MahjongEngine.judgeHand(hand, state.melds[botSeat], discardTile, false, context);
+        const judge = MahjongEngine.judgeHand(tempHand, state.melds[botSeat], discardTile, false, context);
         if (judge) {
             return "ron";
         }
@@ -1192,8 +1198,10 @@ function submitActionVoteLocal(seat, vote) {
     localGameState.actionVotes[seat] = vote;
     
     if (gameMode === "practice") {
-        // 練習戦なら投票結果を即時集計するトリガーを引く
-        runHostLogic();
+        // 同期的呼び出しによる二重実行と競合を防ぐため非同期化
+        setTimeout(() => {
+            runHostLogic();
+        }, 0);
     }
 }
 
