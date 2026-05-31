@@ -938,6 +938,21 @@ function runHostLogic() {
                 const discardTile = MahjongEngine.comDecideDiscard(hand);
                 hostProcessDiscard(seat, discardTile);
             }, 1000); // リアルな間を作る
+        } else {
+            // 人間プレイヤーのツモ番の場合、ツモアガリ宣言（投票）があるかチェック
+            const votes = state.actionVotes || {};
+            const seat = state.currentTurn;
+            if (votes[seat] === "tsumo") {
+                // 二重実行防止のために即座に状態を resolving へ遷移してロックする
+                state.actionVotes = {};
+                state.turnState = "resolving";
+                if (gameMode === "online" && roomRef) {
+                    roomRef.child("actionVotes").set({});
+                    roomRef.child("turnState").set("resolving");
+                }
+                
+                hostProcessAgari(seat, -1, true);
+            }
         }
     } else if (state.turnState === "discarded") {
         // 打牌直後、投票（ポン・ロン・パス）の集計
