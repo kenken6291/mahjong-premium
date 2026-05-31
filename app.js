@@ -174,7 +174,8 @@ let localGameState = {
     kyoku: 0, // 東一局:0, 東二局:1...
     honba: 0,
     kyoutaku: 0,
-    riichiSeats: [] // リーチしている座席インデックス
+    riichiSeats: [], // リーチしている座席インデックス
+    riichiDeclaringSeat: -1 // リーチ宣言中（打牌前）の座席インデックス
 };
 
 // ロン・ツモ等の処理用の一時的な変数
@@ -430,7 +431,8 @@ function startPracticeGame() {
         kyoku: 0,
         honba: 0,
         kyoutaku: 0,
-        riichiSeats: []
+        riichiSeats: [],
+        riichiDeclaringSeat: -1
     };
 
     welcomeScreen.classList.add("hidden");
@@ -768,7 +770,8 @@ function setupBotsAndStartOnlineGame() {
         kyoku: 0,
         honba: 0,
         kyoutaku: 0,
-        riichiSeats: []
+        riichiSeats: [],
+        riichiDeclaringSeat: -1
     };
 
     roomRef.set(gameStartPayload);
@@ -1213,7 +1216,7 @@ function declareRiichi() {
     // リーチ棒（1,000点）を支払い、供託に置く
     localGameState.scores[seat] -= 1000;
     localGameState.kyoutaku += 1;
-    localGameState.riichiSeats.push(seat);
+    localGameState.riichiDeclaringSeat = seat; // 宣言中フラグをセット
 
     // 立直演出
     triggerCutin("立直");
@@ -1229,7 +1232,7 @@ function declareRiichi() {
         roomRef.update({
             scores: localGameState.scores,
             kyoutaku: localGameState.kyoutaku,
-            riichiSeats: localGameState.riichiSeats
+            riichiDeclaringSeat: seat
         });
     }
 }
@@ -1339,12 +1342,19 @@ function hostProcessDiscard(discardSeat, tile) {
     MahjongEngine.removeTile(hand, tile);
     state.hands[discardSeat] = MahjongEngine.sortHand(hand);
 
-    // リーチ中なら横向きにする
-    const isRiichi = state.riichiSeats.includes(discardSeat);
-    const discardCount = state.discards[discardSeat].length;
-    // リーチをかけた瞬間の最初の捨て牌を横にする
-    const isFirstRiichiDiscard = isRiichi && (state.riichiSeats.indexOf(discardSeat) !== -1) && 
-        !state.discards[discardSeat].some(d => d.riichi);
+    // リーチの判定と成立処理
+    let isFirstRiichiDiscard = false;
+    if (state.riichiDeclaringSeat === discardSeat) {
+        state.riichiSeats = state.riichiSeats || [];
+        if (!state.riichiSeats.includes(discardSeat)) {
+            state.riichiSeats.push(discardSeat);
+        }
+        state.riichiDeclaringSeat = -1; // リセット
+        isFirstRiichiDiscard = true;
+    } else {
+        // すでに前ターン以前にリーチしている場合
+        const isRiichi = state.riichiSeats && state.riichiSeats.includes(discardSeat);
+    }
 
     const discardObj = {
         tile: tile,
@@ -1368,7 +1378,9 @@ function hostProcessDiscard(discardSeat, tile) {
             lastDiscard: tile,
             lastDiscardSeat: discardSeat,
             turnState: "discarded",
-            actionVotes: {}
+            actionVotes: {},
+            riichiSeats: state.riichiSeats || [],
+            riichiDeclaringSeat: -1
         });
     }
 }
