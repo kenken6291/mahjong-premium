@@ -463,6 +463,7 @@ function startNewRoundPractice() {
     localGameState.discards = [[], [], [], []];
     localGameState.melds = [[], [], [], []];
     localGameState.riichiSeats = [];
+    localGameState.riichiDeclaringSeat = -1;
     localGameState.actionVotes = {};
     localGameState.lastDiscard = null;
     localGameState.lastDiscardSeat = -1;
@@ -818,6 +819,7 @@ function startNewRoundOnline() {
         discards: [[], [], [], []],
         melds: [[], [], [], []],
         riichiSeats: [],
+        riichiDeclaringSeat: -1,
         actionVotes: {},
         lastDiscard: null,
         lastDiscardSeat: -1,
@@ -918,7 +920,12 @@ function runHostLogic() {
             }
 
             // COMが手番の場合、思考して捨てる牌を決める
+            const currentKyoku = state.kyoku;
+            const currentHonba = state.honba;
             setTimeout(() => {
+                if (localGameState.kyoku !== currentKyoku || localGameState.honba !== currentHonba || localGameState.status !== "playing") {
+                    return;
+                }
                 const discardTile = MahjongEngine.comDecideDiscard(hand);
                 hostProcessDiscard(seat, discardTile);
             }, 1000); // リアルな間を作る
@@ -957,7 +964,12 @@ function runHostLogic() {
             }
             
             // 投票結果の集計とアクション実行
+            const currentKyoku = state.kyoku;
+            const currentHonba = state.honba;
             setTimeout(() => {
+                if (localGameState.kyoku !== currentKyoku || localGameState.honba !== currentHonba || localGameState.status !== "playing") {
+                    return;
+                }
                 hostResolveVotes();
             }, 500);
         }
@@ -1862,14 +1874,22 @@ function hostProcessAgari(winnerSeat, throwerSeat, isTsumo) {
         }
     };
 
+    const currentKyoku = state.kyoku;
+    const currentHonba = state.honba;
     if (gameMode === "practice") {
         localGameState = { ...localGameState, ...payload };
         // ロン/ツモ演出のアニメーション待機
         setTimeout(() => {
+            if (localGameState.kyoku !== currentKyoku || localGameState.honba !== currentHonba) {
+                return;
+            }
             showRoundResultModal(localGameState);
         }, 1200);
     } else {
         setTimeout(() => {
+            if (localGameState.kyoku !== currentKyoku || localGameState.honba !== currentHonba) {
+                return;
+            }
             roomRef.update(payload);
         }, 1200);
     }
