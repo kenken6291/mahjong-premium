@@ -876,8 +876,8 @@ function runHostLogic() {
             }
         });
 
-        // 全員分の投票（人間＋COM）が集まったかチェック
-        const activeSeats = state.players.map(p => p.seat);
+        // 打牌したプレイヤー以外の残り3人の投票が集まったかチェック
+        const activeSeats = state.players.map(p => p.seat).filter(seat => seat !== state.lastDiscardSeat);
         const allVoted = activeSeats.every(seat => voters.includes(seat));
 
         if (allVoted) {
