@@ -15,8 +15,8 @@
     --table-neon: radial-gradient(circle, #0d0614 0%, #050208 100%);
     --card-bg: rgba(255, 255, 255, 0.08);
     --card-border: rgba(255, 255, 255, 0.12);
-    --tile-width: 32px;
-    --tile-height: 44px;
+    --tile-width: 40px;
+    --tile-height: 54px;
 }
 
 /* テーマ別背景 */
@@ -593,9 +593,9 @@ body.theme-neon .center-dashboard {
 
 /* ミニドラ表示牌 */
 .dora-indicator-tiles .tile {
-    width: 18px !important;
-    height: 24px !important;
-    font-size: 9px !important;
+    width: 22px !important;
+    height: 30px !important;
+    font-size: 11px !important;
     box-shadow: 0 1px 2px rgba(0,0,0,0.4) !important;
     border-radius: 2px !important;
 }
@@ -760,8 +760,8 @@ body.theme-neon .center-dashboard {
     background: rgba(0, 0, 0, 0.15);
     padding: 4px;
     border-radius: 6px;
-    min-width: 196px;
-    min-height: 130px;
+    min-width: 250px;
+    min-height: 170px;
     border: 1px dashed rgba(255, 255, 255, 0.05);
 }
 
@@ -771,41 +771,52 @@ body.theme-neon .center-dashboard {
     height: var(--tile-height);
     background: linear-gradient(to bottom, #ffffff 0%, #eaeaea 100%);
     border-radius: 4px;
-    border: 1px solid #ccc;
+    border: 1.5px solid #ccc;
     box-shadow: 0 3px 0 #b3b3b3, 0 4px 4px rgba(0,0,0,0.4);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
-    padding: 3px 2px;
+    padding: 4px 3px;
     position: relative;
     cursor: pointer;
     user-select: none;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+/* 手元（自分）の牌のサイズを視認性向上のため大幅拡大 */
+.seat-bottom .hand-container .tile,
+.seat-bottom .tsumo-container .tile {
+    width: 48px;
+    height: 66px;
+    padding: 7px 5px;
+    border-radius: 6px;
+    box-shadow: 0 4px 0 #999, 0 6px 8px rgba(0,0,0,0.45);
+}
+
 /* 手元の牌ホバー */
 .seat-bottom .hand-container .tile:hover,
 .seat-bottom .tsumo-container .tile:hover {
-    transform: translateY(-8px) rotateX(-5deg);
-    box-shadow: 0 8px 0 #b3b3b3, 0 10px 10px rgba(0,0,0,0.4);
+    transform: translateY(-10px) rotateX(-5deg);
+    box-shadow: 0 9px 0 #999, 0 12px 12px rgba(0,0,0,0.4);
     z-index: 10;
 }
 
 /* リーチで横向きにされた牌 */
 .tile.riichi-discard {
     transform: rotate(90deg);
-    /* 縦横比が狂うのを補正するための調整 */
-    margin: 0 4px;
+    margin: 0 6px;
 }
 
 /* 鳴き牌（表向き・横に寝かせる） */
 .tile.meld-tile {
-    /* 必要に応じて小さく */
+    width: 36px;
+    height: 50px;
+    padding: 4px 3px;
 }
 .tile.meld-tile-sideways {
     transform: rotate(90deg);
-    margin: 0 4px;
+    margin: 0 6px;
 }
 
 /* 牌の裏面 */
@@ -834,76 +845,103 @@ body.theme-neon .tile.tile-back {
 
 /* 萬子 (Characters) */
 .tile-suit-m {
-    color: #111;
+    color: #000;
+    font-family: 'Noto Sans JP', sans-serif;
+    text-shadow: 0 0 0.5px currentColor;
 }
 .tile-suit-m .tile-val {
-    font-size: 0.8rem;
+    font-size: 1.3rem;
+    font-weight: 900;
     line-height: 1;
 }
 .tile-suit-m .tile-kanji {
-    font-size: 0.7rem;
+    font-size: 1.05rem;
+    font-weight: 900;
     color: var(--accent-red);
     line-height: 1;
+    margin-top: -2px;
+    text-shadow: 0 0 0.5px var(--accent-red);
 }
 
 /* 筒子 (Pins) */
 .tile-suit-p {
     display: grid;
-    gap: 1px;
-    width: 80%;
-    height: 80%;
+    gap: 2px;
+    width: 85%;
+    height: 85%;
     justify-content: center;
     align-content: center;
 }
 .pin-dot {
-    width: 6px;
-    height: 6px;
+    width: 9.5px;
+    height: 9.5px;
     border-radius: 50%;
     background: #0984e3; /* 青 */
+    box-shadow: inset -1px -1px 2px rgba(0,0,0,0.3), 0 0 1px rgba(0,0,0,0.5);
 }
 .pin-dot.red { background: var(--accent-red); }
 .pin-dot.green { background: #2ed573; }
+
+/* 1筒 (特大ドット) の特別スタイル */
+.tile-suit-p.p-1 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.tile-suit-p.p-1 .pin-dot {
+    width: 26px;
+    height: 26px;
+    background: radial-gradient(circle, #e74c3c 0%, #c0392b 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset -1px -1px 2px rgba(0,0,0,0.3);
+    border: 1px solid rgba(0,0,0,0.2);
+}
 
 /* 索子 (Bamboos) */
 .tile-suit-s {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 1px;
+    gap: 2px;
     justify-content: center;
     align-items: center;
-    width: 80%;
-    height: 80%;
+    width: 85%;
+    height: 85%;
 }
 .bamboo-stick {
-    width: 3px;
-    height: 10px;
-    background: #2ed573;
-    border-radius: 1px;
+    width: 5.5px;
+    height: 15px;
+    background: #27ae60;
+    border-radius: 2px;
+    box-shadow: inset -1px -1px 1px rgba(0,0,0,0.2), 0 0 1px rgba(0,0,0,0.5);
 }
 .bamboo-stick.red { background: var(--accent-red); }
 
 /* 1索用の鳥アイコン代替 */
 .tile-suit-s-1 {
-    font-size: 1.1rem;
+    font-size: 1.9rem;
+    text-shadow: 0 0 0.5px rgba(0,0,0,0.5);
 }
 
 /* 字牌 (Honors) */
 .tile-suit-z {
-    font-size: 1.1rem;
+    font-size: 1.8rem;
+    font-weight: 900;
+    font-family: 'Noto Sans JP', sans-serif;
+    text-shadow: 0 0 0.5px currentColor;
 }
-.tile-suit-z.z-ton { color: #2c3e50; } /* 東 */
-.tile-suit-z.z-nan { color: #2c3e50; } /* 南 */
-.tile-suit-z.z-sha { color: #2c3e50; } /* 西 */
-.tile-suit-z.z-pei { color: #2c3e50; } /* 北 */
+.tile-suit-z.z-ton { color: #000; } /* 東 */
+.tile-suit-z.z-nan { color: #000; } /* 南 */
+.tile-suit-z.z-sha { color: #000; } /* 西 */
+.tile-suit-z.z-pei { color: #000; } /* 北 */
 .tile-suit-z.z-haku {
-    width: 70%;
-    height: 70%;
-    border: 1.5px solid #74b9ff;
-    border-radius: 2px;
+    width: 75%;
+    height: 75%;
+    border: 3.5px solid #0984e3;
+    border-radius: 3px;
+    background: rgba(9, 132, 227, 0.05);
 } /* 白 */
-.tile-suit-z.z-hatsu { color: #27ae60; } /* 發 */
-.tile-suit-z.z-chun { color: var(--accent-red); } /* 中 */
+.tile-suit-z.z-hatsu { color: #27ae60; text-shadow: 0 0 0.5px #27ae60; } /* 發 */
+.tile-suit-z.z-chun { color: var(--accent-red); text-shadow: 0 0 0.5px var(--accent-red); } /* 中 */
 
 /* 赤ドラ (Red Dora Glowing Effect) */
 .tile.red-dora {

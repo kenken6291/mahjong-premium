@@ -39,8 +39,17 @@ class SoundManager {
     }
 
     init() {
-        if (!this.ctx) {
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        try {
+            if (!this.ctx) {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume().catch(err => {
+                    console.warn("Failed to resume AudioContext:", err);
+                });
+            }
+        } catch (e) {
+            console.error("AudioContext initialization failed:", e);
         }
     }
 
@@ -147,7 +156,7 @@ let roomRef = null;
 // ローカルゲームステート（ practice モード用 ＆ オンライン受信バッファ ）
 let localGameState = {
     status: "waiting", // 'waiting', 'playing', 'roundEnd', 'gameover'
-    rules: { akaDora: true },
+    rules: { akaDora: true, comCount: 3 },
     players: [],
     oya: 0,
     currentTurn: 0,
@@ -173,6 +182,7 @@ let possibleActions = { chi: false, pon: false, kan: false, riichi: false, tsumo
 // --- DOM 要素の取得 ---
 const gameModeSelect = document.getElementById("game-mode");
 const ruleAkaDoraCheckbox = document.getElementById("rule-aka-dora");
+const ruleComCountSelect = document.getElementById("rule-com-count");
 const themeSelect = document.getElementById("theme-select");
 const onlineRoomGroup = document.getElementById("online-room-group");
 const practiceStartBtn = document.getElementById("btn-practice-start");
@@ -238,6 +248,16 @@ window.addEventListener("DOMContentLoaded", () => {
         gameModeSelect.dispatchEvent(new Event("change"));
         gameModeSelect.disabled = true;
     }
+
+    // 初回のユーザーインタラクション時にAudioContextをアクティベートする
+    const unlockAudio = () => {
+        sounds.init();
+        const events = ['click', 'touchstart', 'mousedown', 'keydown'];
+        events.forEach(e => document.removeEventListener(e, unlockAudio));
+    };
+    ['click', 'touchstart', 'mousedown', 'keydown'].forEach(e => {
+        document.addEventListener(e, unlockAudio, { passive: true });
+    });
 });
 
 function setupUIHandlers() {
@@ -250,9 +270,12 @@ function setupUIHandlers() {
         if (gameMode === "practice") {
             onlineRoomGroup.classList.add("hidden");
             practiceStartBtn.classList.remove("hidden");
+            ruleComCountSelect.value = "3";
+            ruleComCountSelect.disabled = true;
         } else {
             onlineRoomGroup.classList.remove("hidden");
             practiceStartBtn.classList.add("hidden");
+            ruleComCountSelect.disabled = false;
         }
     });
     gameModeSelect.dispatchEvent(new Event("change"));
@@ -264,8 +287,23 @@ function setupUIHandlers() {
         document.getElementById("svg-sound-off").classList.toggle("hidden", !sounds.muted);
     });
 
+    // COM人数変更時のリアルタイム同期 (ホストのみ)
+    ruleComCountSelect.addEventListener("change", (e) => {
+        if (isHost && roomRef) {
+            roomRef.child("rules/comCount").set(parseInt(e.target.value));
+        }
+    });
+
+    // 赤ドラルール変更時のリアルタイム同期 (ホストのみ)
+    ruleAkaDoraCheckbox.addEventListener("change", (e) => {
+        if (isHost && roomRef) {
+            roomRef.child("rules/akaDora").set(e.target.checked);
+        }
+    });
+
     // 練習戦開始
     practiceStartBtn.addEventListener("click", () => {
+        sounds.init();
         startPracticeGame();
     });
 
@@ -435,7 +473,10 @@ function createOnlineRoom(roomId) {
     
     const initialRoomData = {
         status: "waiting",
-        rules: { akaDora: ruleAkaDoraCheckbox.checked },
+        rules: { 
+            akaDora: ruleAkaDoraCheckbox.checked,
+            comCount: parseInt(ruleComCountSelect.value)
+        },
         players: [
             { uid: myUid, name: myName, isReady: true, isHost: true, seat: 0 }
         ]
@@ -445,10 +486,12 @@ function createOnlineRoom(roomId) {
         displayRoomId.textContent = roomId;
         lobbyInitView.classList.add("hidden");
         lobbyWaitingView.classList.remove("hidden");
-        startGameBtn.classList.remove("hidden"); // ホストのみ開始ボタン表示
         
         welcomeScreen.classList.add("hidden");
         mahjongTable.classList.add("hidden");
+
+        // 音響のアクティベート
+        sounds.init();
 
         listenToRoomChanges();
     });
@@ -471,13 +514,45 @@ function joinOnlineRoom(roomId) {
             return;
         }
 
+        const comCount = roomData.rules ? (roomData.rules.comCount || 3) : 3;
         const players = roomData.players || [];
-        if (players.length >= 4) {
-            alert("ルームが満員です。");
+        if (players.length + comCount >= 4) {
+            alert("ルームが満員です (指定されたCOM枠を含みます)。");
             return;
         }
 
-        mySeat = players.length;
+        // 空いている席を見つけてアサイン
+        const seatsUsed = players.map(p => p.seat);
+        let assignedSeat = -1;
+        // ホストは0番、COMは後ろから埋めるので、空いている手前の席を探す
+        for (let seat = 0; seat < 4; seat++) {
+            if (!seatsUsed.includes(seat)) {
+                // COM枠として確保されている席（3 - i）は避ける
+                let isReservedForBot = false;
+                for (let i = 0; i < comCount; i++) {
+                    if (seat === (3 - i)) {
+                        isReservedForBot = true;
+                        break;
+                    }
+                }
+                if (!isReservedForBot) {
+                    assignedSeat = seat;
+                    break;
+                }
+            }
+        }
+
+        // 見つからなければ空いている席にアサイン
+        if (assignedSeat === -1) {
+            for (let seat = 0; seat < 4; seat++) {
+                if (!seatsUsed.includes(seat)) {
+                    assignedSeat = seat;
+                    break;
+                }
+            }
+        }
+
+        mySeat = assignedSeat;
         const newPlayer = {
             uid: myUid,
             name: myName,
@@ -497,6 +572,9 @@ function joinOnlineRoom(roomId) {
             welcomeScreen.classList.add("hidden");
             mahjongTable.classList.add("hidden");
 
+            // 音響のアクティベート
+            sounds.init();
+
             listenToRoomChanges();
         });
     });
@@ -512,10 +590,32 @@ function listenToRoomChanges() {
         const roomData = snapshot.val();
         localGameState = roomData;
 
+        // ルール設定のリアルタイム同期 (ホストの変更をゲストのUIにも反映する)
+        if (roomData.rules) {
+            ruleAkaDoraCheckbox.checked = roomData.rules.akaDora !== false;
+            ruleComCountSelect.value = roomData.rules.comCount !== undefined ? roomData.rules.comCount.toString() : "3";
+        }
+
+        // UI設定変更の可否を制御 (ゲストプレイヤーまたはゲーム開始後は設定変更不可)
+        const shouldDisableSettings = !isHost || roomData.status !== "waiting";
+        ruleAkaDoraCheckbox.disabled = shouldDisableSettings;
+        ruleComCountSelect.disabled = shouldDisableSettings;
+
         // ロビーリストの描画
         updateLobbyUI(roomData.players || []);
 
-        if (roomData.status === "playing") {
+        if (roomData.status === "waiting") {
+            // ホストの場合、人間プレイヤー数＋COM数が4に達したら開始ボタンを表示
+            if (isHost) {
+                const comCount = roomData.rules ? (roomData.rules.comCount || 3) : 3;
+                const totalPlayers = (roomData.players || []).length + comCount;
+                if (totalPlayers >= 4) {
+                    startGameBtn.classList.remove("hidden");
+                } else {
+                    startGameBtn.classList.add("hidden");
+                }
+            }
+        } else if (roomData.status === "playing") {
             // 対局画面の切り替え
             lobbyWaitingView.classList.add("hidden");
             lobbyActiveView.classList.remove("hidden");
@@ -540,28 +640,59 @@ function listenToRoomChanges() {
 }
 
 function updateLobbyUI(players) {
+    const comCount = localGameState.rules ? (localGameState.rules.comCount || 3) : 3;
+
     // ロビースロットの初期化
     for (let i = 0; i < 4; i++) {
         const nameEl = document.getElementById("lobby-p" + i);
-        if (nameEl) nameEl.textContent = "空きスロット (COM)";
+        if (nameEl) nameEl.textContent = "空きスロット (待機中)";
     }
 
+    // 人間プレイヤーの描画
     players.forEach(p => {
         const nameEl = document.getElementById("lobby-p" + p.seat);
         if (nameEl) {
             nameEl.textContent = p.name + (p.uid === myUid ? " (あなた)" : "");
         }
     });
+
+    // 設定されたCOM枠を後ろから埋めて表示する
+    for (let i = 0; i < comCount; i++) {
+        const botSeat = 3 - i;
+        const hasPlayer = players.some(p => p.seat === botSeat);
+        if (!hasPlayer) {
+            const nameEl = document.getElementById("lobby-p" + botSeat);
+            if (nameEl) {
+                nameEl.textContent = "COM" + botSeat + " (CPU)";
+            }
+        }
+    }
 }
 
 function setupBotsAndStartOnlineGame() {
-    // 参加人数を確認し、4人未満ならCOMを補填
     const players = localGameState.players || [];
     const filledPlayers = [...players];
     const seatsUsed = players.map(p => p.seat);
+    const comCount = localGameState.rules ? (localGameState.rules.comCount || 3) : 3;
 
+    // 指定されたCOMの数だけ席の後ろからBotを配置する
+    for (let i = 0; i < comCount; i++) {
+        const botSeat = 3 - i;
+        if (!seatsUsed.includes(botSeat)) {
+            filledPlayers.push({
+                uid: "bot_" + botSeat,
+                name: "COM" + botSeat,
+                isBot: true,
+                seat: botSeat,
+                isReady: true
+            });
+        }
+    }
+
+    // もしそれでも4人に満たない場合は、強制的に空いている席も Bot で埋めて4人にする（フォールバック）
+    const finalSeatsUsed = filledPlayers.map(p => p.seat);
     for (let seat = 0; seat < 4; seat++) {
-        if (!seatsUsed.includes(seat)) {
+        if (!finalSeatsUsed.includes(seat)) {
             filledPlayers.push({
                 uid: "bot_" + seat,
                 name: "COM" + seat,
@@ -695,6 +826,10 @@ function resetToLobby() {
     currentRoomId = null;
     isHost = false;
     mySeat = 0;
+
+    // 設定項目の無効化をリセット
+    ruleAkaDoraCheckbox.disabled = false;
+    ruleComCountSelect.disabled = gameMode === "practice"; // 練習戦なら無効のまま
 
     lobbyInitView.classList.remove("hidden");
     lobbyWaitingView.classList.add("hidden");
