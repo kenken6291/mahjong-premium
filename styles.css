@@ -628,13 +628,13 @@ body.theme-neon .center-dashboard {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     z-index: 5;
 }
 
 /* 下 (BOTTOM - 自分) */
 .seat-bottom {
-    bottom: 20px;
+    bottom: 5px;
     left: 50%;
     transform: translateX(-50%);
     width: 480px;
@@ -642,7 +642,7 @@ body.theme-neon .center-dashboard {
 
 /* 右 (RIGHT) - 90度反時計回り (実際には上向きに並べるか、回転させる) */
 .seat-right {
-    right: 15px;
+    right: -15px;
     top: 50%;
     transform: translateY(-50%) rotate(-90deg);
     width: 320px;
@@ -650,7 +650,7 @@ body.theme-neon .center-dashboard {
 
 /* 上 (TOP) - 180度回転 */
 .seat-top {
-    top: 20px;
+    top: 0px;
     left: 50%;
     transform: translateX(-50%) rotate(180deg);
     width: 320px;
@@ -658,7 +658,7 @@ body.theme-neon .center-dashboard {
 
 /* 左 (LEFT) - 90度時計回り */
 .seat-left {
-    left: 15px;
+    left: -15px;
     top: 50%;
     transform: translateY(-50%) rotate(90deg);
     width: 320px;
