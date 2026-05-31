@@ -1,27 +1,38 @@
 /**
- * Reversi Premium - Game Logic & UI Orchestrator
+ * Mahjong Premium - メインアプリケーション (app.js)
+ * UI制御、Firebaseリアルタイム同期、対戦進行管理
  */
 
 // --- Firebase Config (ユーザー設定エリア) ---
 const firebaseConfig = {
-  apiKey: "AIzaSyCILp9Mz5-AUKfR_b42SCjv9pkO93kUC08",
-  authDomain: "reversi-premium.firebaseapp.com",
-  databaseURL: "https://reversi-premium-default-rtdb.firebaseio.com",
-  projectId: "reversi-premium",
-  storageBucket: "reversi-premium.firebasestorage.app",
-  messagingSenderId: "328739106410",
-  appId: "1:328739106410:web:610c1af903d6e27eb4e413",
-  measurementId: "G-B0VLLZTBGV"
+    apiKey: "AIzaSyAL5lmfFhLhC-MDzV0GTss9xD5p5KlO1r4",
+    authDomain: "mahjong-premium.firebaseapp.com",
+    databaseURL: "https://mahjong-premium-default-rtdb.firebaseio.com",
+    projectId: "mahjong-premium",
+    storageBucket: "mahjong-premium.firebasestorage.app",
+    messagingSenderId: "367743481777",
+    appId: "1:367743481777:web:ee7a04ceff44555981af90"
 };
 
-// --- Constants ---
-const BOARD_SIZE = 8;
-const EMPTY = 0;
-const BLACK = 1; // Player 1 (先手)
-const WHITE = 2; // Player 2 or AI (後手)
+// Firebaseの初期化
+let database = null;
+let isFirebaseEnabled = false;
 
-// --- Audio Synth (Web Audio API) ---
-class SoundSynth {
+try {
+    if (firebaseConfig && firebaseConfig.databaseURL) {
+        firebase.initializeApp(firebaseConfig);
+        database = firebase.database();
+        isFirebaseEnabled = true;
+        console.log("Firebase initialized successfully.");
+    } else {
+        console.log("Firebase Config is empty. Running in Practice (offline) mode only.");
+    }
+} catch (e) {
+    console.warn("Firebase initialization failed. Running in Practice mode.", e);
+}
+
+// --- 音響効果 (Web Audio API) ---
+class SoundManager {
     constructor() {
         this.ctx = null;
         this.muted = false;
@@ -31,1475 +42,1738 @@ class SoundSynth {
         if (!this.ctx) {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         }
-        if (this.ctx.state === 'suspended') {
-            this.ctx.resume();
-        }
     }
 
-    playTone(freq, type, duration, volume, delay = 0) {
+    playDiscard() {
         if (this.muted) return;
         this.init();
+        const ctx = this.ctx;
         
-        setTimeout(() => {
-            try {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                
-                osc.type = type;
-                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                
-                gain.gain.setValueAtTime(volume, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.00001, this.ctx.currentTime + duration);
-                
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                
-                osc.start();
-                osc.stop(this.ctx.currentTime + duration);
-            } catch (e) {
-                console.error("Audio error", e);
-            }
-        }, delay * 1000);
+        // 打牌音: コツッという石の打撃音
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.08);
+        
+        gain.gain.setValueAtTime(0.5, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.08);
+
+        // 高周波の硬い響きをミックス
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(1200, ctx.currentTime);
+        osc2.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.03);
+        
+        gain2.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.03);
+        
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start();
+        osc2.stop(ctx.currentTime + 0.03);
     }
 
-    playPlaceSound() {
-        // 石を置く「パチッ」という乾いた良い打音
-        this.playTone(400, 'triangle', 0.08, 0.5);
-        this.playTone(150, 'sine', 0.05, 0.4, 0.01);
+    playAction() {
+        if (this.muted) return;
+        this.init();
+        const ctx = this.ctx;
+        
+        // アクション決定音（ピピッ）
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc1.frequency.setValueAtTime(600, ctx.currentTime);
+        osc2.frequency.setValueAtTime(800, ctx.currentTime + 0.07);
+        
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc1.start();
+        osc2.start();
+        osc1.stop(ctx.currentTime + 0.07);
+        osc2.start(ctx.currentTime + 0.07);
+        osc2.stop(ctx.currentTime + 0.18);
     }
 
-    playPlaceSoundOnline() {
-        // オンライン対戦相手の打音（少し異なる音）
-        this.playTone(450, 'triangle', 0.08, 0.5);
-        this.playTone(180, 'sine', 0.05, 0.4, 0.01);
-    }
-
-    playWinSound() {
-        const chord = [261.63, 329.63, 392.00, 523.25]; // C major
-        chord.forEach((freq, idx) => {
-            this.playTone(freq, 'sine', 0.5, 0.25, idx * 0.1);
+    playWin() {
+        if (this.muted) return;
+        this.init();
+        const ctx = this.ctx;
+        
+        // アガリファンファーレ (明るい和音)
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // ド・ミ・ソ・ド
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.1);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.1 + 0.6);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + i * 0.1);
+            osc.stop(ctx.currentTime + i * 0.1 + 0.6);
         });
-        this.playTone(659.25, 'sine', 0.8, 0.2, 0.5); // high E
-    }
-
-    playLoseSound() {
-        const chord = [261.63, 311.13, 392.00, 466.16]; // C minor 7 down
-        chord.reverse().forEach((freq, idx) => {
-            this.playTone(freq, 'sine', 0.5, 0.2, idx * 0.12);
-        });
-    }
-
-    playDrawSound() {
-        this.playTone(349.23, 'sine', 0.3, 0.2); // F
-        this.playTone(349.23, 'sine', 0.3, 0.2, 0.25);
     }
 }
 
-const synth = new SoundSynth();
+const sounds = new SoundManager();
 
-// --- Game State Variables ---
-let board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
-let turn = BLACK;
-let gameMode = 'pve'; // 'pvp', 'pve', or 'online'
-let aiDifficulty = 'medium'; // 'easy', 'medium', 'hard'
-let playerColor = BLACK; // Black (先手) by default
-let gameActive = true;
-let moveHistory = []; // Undo用のスタック
-let gameRecord = []; // 棋譜記録用
-let replayMode = false;
-let replayIndex = -1;
-let replayTimer = null;
+// --- アプリケーション状態 ---
+let myUid = "user_" + Math.random().toString(36).substring(2, 8);
+let myName = "プレイヤー";
+let mySeat = 0; // 0:東/南/西/北 (自分が着席した席)
+let currentRoomId = null;
+let isHost = false;
+let gameMode = "online"; // 'online' or 'practice'
 
-// Firebase Online Multiplayer States
-let database = null;
+// Firebase用データベース参照
 let roomRef = null;
-let roomId = null;
-let myRole = null; // BLACK or WHITE
-let isOnlineActive = false;
-let oppConnected = false;
 
-// Timer properties
-let timerInterval = null;
-let timerBlack = 0;
-let timerWhite = 0;
-
-// Local stats structure
-let gameStats = {
-    pvp: { total: 0, blackWins: 0, whiteWins: 0, draws: 0 },
-    pve: { total: 0, playerWins: 0, aiWins: 0, draws: 0 },
-    online: { total: 0, wins: 0, losses: 0, draws: 0 }
+// ローカルゲームステート（ practice モード用 ＆ オンライン受信バッファ ）
+let localGameState = {
+    status: "waiting", // 'waiting', 'playing', 'roundEnd', 'gameover'
+    rules: { akaDora: true },
+    players: [],
+    oya: 0,
+    currentTurn: 0,
+    turnState: "tsumo", // 'tsumo' (打牌待ち), 'discarded' (鳴き意思待ち)
+    wall: [],
+    doraIndicators: [],
+    hands: [[], [], [], []],
+    discards: [[], [], [], []],
+    melds: [[], [], [], []],
+    lastDiscard: null,
+    lastDiscardSeat: -1,
+    actionVotes: {}, // 各プレイヤーのアクション投票
+    scores: [25000, 25000, 25000, 25000],
+    kyoku: 0, // 東一局:0, 東二局:1...
+    honba: 0,
+    kyoutaku: 0,
+    riichiSeats: [] // リーチしている座席インデックス
 };
 
-// --- DOM Elements ---
-const boardEl = document.getElementById('board');
-const statusMessageEl = document.getElementById('status-message');
-const scoreBlackEl = document.getElementById('score-black');
-const scoreWhiteEl = document.getElementById('score-white');
-const nameBlackEl = document.getElementById('name-black');
-const nameWhiteEl = document.getElementById('name-white');
-const timerBlackEl = document.getElementById('timer-black');
-const timerWhiteEl = document.getElementById('timer-white');
-const playerBlackCard = document.getElementById('player-black-card');
-const playerWhiteCard = document.getElementById('player-white-card');
+// ロン・ツモ等の処理用の一時的な変数
+let possibleActions = { chi: false, pon: false, kan: false, riichi: false, tsumo: false, ron: false };
 
-const selectGameMode = document.getElementById('game-mode');
-const selectAiDifficulty = document.getElementById('ai-difficulty');
-const selectPlayerColor = document.getElementById('player-color');
-const selectTheme = document.getElementById('theme-select');
+// --- DOM 要素の取得 ---
+const gameModeSelect = document.getElementById("game-mode");
+const ruleAkaDoraCheckbox = document.getElementById("rule-aka-dora");
+const themeSelect = document.getElementById("theme-select");
+const onlineRoomGroup = document.getElementById("online-room-group");
+const practiceStartBtn = document.getElementById("btn-practice-start");
+const muteBtn = document.getElementById("btn-mute");
 
-const btnRestart = document.getElementById('btn-restart');
-const btnUndo = document.getElementById('btn-undo');
-const btnHistory = document.getElementById('btn-history');
-const btnMute = document.getElementById('btn-mute');
-const svgSoundOn = document.getElementById('svg-sound-on');
-const svgSoundOff = document.getElementById('svg-sound-off');
+const lobbyInitView = document.getElementById("online-init-view");
+const lobbyWaitingView = document.getElementById("online-waiting-view");
+const lobbyActiveView = document.getElementById("online-active-view");
+const createRoomBtn = document.getElementById("btn-create-room");
+const joinRoomBtn = document.getElementById("btn-join-room");
+const inputRoomId = document.getElementById("input-room-id");
+const displayRoomId = document.getElementById("display-room-id");
+const copyRoomBtn = document.getElementById("btn-copy-room");
+const cancelRoomBtn = document.getElementById("btn-cancel-room");
+const leaveRoomBtn = document.getElementById("btn-leave-room");
+const startGameBtn = document.getElementById("btn-start-game");
 
-// Online DOM Elements
-const onlineRoomGroup = document.getElementById('online-room-group');
-const onlineInitView = document.getElementById('online-init-view');
-const onlineWaitingView = document.getElementById('online-waiting-view');
-const onlineActiveView = document.getElementById('online-active-view');
-const displayRoomId = document.getElementById('display-room-id');
-const inputRoomId = document.getElementById('input-room-id');
-const btnCreateRoom = document.getElementById('btn-create-room');
-const btnJoinRoom = document.getElementById('btn-join-room');
-const btnCopyRoom = document.getElementById('btn-copy-room');
-const btnCancelRoom = document.getElementById('btn-cancel-room');
-const btnLeaveRoom = document.getElementById('btn-leave-room');
+const welcomeScreen = document.getElementById("game-welcome-screen");
+const mahjongTable = document.getElementById("mahjong-table");
 
-// Modals
-const resultModal = document.getElementById('result-modal');
-const winnerTextEl = document.getElementById('winner-text');
-const finalScoreBlackEl = document.getElementById('final-score-black');
-const finalScoreWhiteEl = document.getElementById('final-score-white');
-const finalNameBlackEl = document.getElementById('final-name-black');
-const finalNameWhiteEl = document.getElementById('final-name-white');
-const gameEndReasonEl = document.getElementById('game-end-reason');
-const btnModalRestart = document.getElementById('btn-modal-restart');
-const btnModalClose = document.getElementById('btn-modal-close');
+const actionPanel = document.getElementById("action-panel");
+const btnChi = document.getElementById("btn-action-chi");
+const btnPon = document.getElementById("btn-action-pon");
+const btnKan = document.getElementById("btn-action-kan");
+const btnRiichi = document.getElementById("btn-action-riichi");
+const btnTsumo = document.getElementById("btn-action-tsumo");
+const btnRon = document.getElementById("btn-action-ron");
+const btnPass = document.getElementById("btn-action-pass");
 
-const historyModal = document.getElementById('history-modal');
-const btnHistoryClose = document.getElementById('btn-history-close');
-const btnClearStats = document.getElementById('btn-clear-stats');
+const cutinOverlay = document.getElementById("cutin-overlay");
+const cutinText = document.getElementById("cutin-text");
 
-// Replay panel
-const replayPanel = document.getElementById('replay-panel');
-const btnReplayPrev = document.getElementById('btn-replay-prev');
-const btnReplayNext = document.getElementById('btn-replay-next');
-const btnReplayAuto = document.getElementById('btn-replay-auto');
-const replayStepsEl = document.getElementById('replay-steps');
-const svgPlay = document.getElementById('svg-play');
-const svgPause = document.getElementById('svg-pause');
+const resultModal = document.getElementById("result-modal");
+const resultTitle = document.getElementById("result-title");
+const yakuListContainer = document.getElementById("yaku-list-container");
+const yakuTbody = document.getElementById("yaku-tbody");
+const displayFu = document.getElementById("display-fu");
+const displayHan = document.getElementById("display-han");
+const displayLimitName = document.getElementById("display-limit-name");
+const resultReason = document.getElementById("result-reason");
+const resultNextBtn = document.getElementById("btn-result-next");
 
-// --- Initialization ---
-document.addEventListener('DOMContentLoaded', () => {
-    loadStats();
-    setupEventListeners();
-    applyTheme(selectTheme.value);
-    resetGame();
+const gameoverModal = document.getElementById("gameover-modal");
+const finalRankings = document.getElementById("final-rankings");
+const gameoverCloseBtn = document.getElementById("btn-gameover-close");
+
+// ローカルストレージからプレイヤー名を取得または設定
+let storedName = localStorage.getItem("mahjong_player_name");
+if (!storedName) {
+    storedName = "プレイヤー" + Math.floor(Math.random() * 900 + 100);
+    localStorage.setItem("mahjong_player_name", storedName);
+}
+myName = storedName;
+
+// --- 初期イベントリスナー ---
+window.addEventListener("DOMContentLoaded", () => {
+    setupUIHandlers();
+    updateTheme(themeSelect.value);
+    
+    // Firebaseが有効でないなら、対戦モードをPractice固定にし、警告メッセージを表示
+    if (!isFirebaseEnabled) {
+        gameModeSelect.value = "practice";
+        gameModeSelect.dispatchEvent(new Event("change"));
+        gameModeSelect.disabled = true;
+    }
 });
 
-// --- Sound Mute handling ---
-function toggleMute() {
-    synth.muted = !synth.muted;
-    if (synth.muted) {
-        svgSoundOn.classList.add('hidden');
-        svgSoundOff.classList.remove('hidden');
-    } else {
-        svgSoundOn.classList.remove('hidden');
-        svgSoundOff.classList.add('hidden');
-        synth.init();
-    }
-}
+function setupUIHandlers() {
+    // テーマ切り替え
+    themeSelect.addEventListener("change", (e) => updateTheme(e.target.value));
 
-// --- Local Storage Stats ---
-function loadStats() {
-    const saved = localStorage.getItem('reversi_premium_stats');
-    if (saved) {
-        try {
-            gameStats = JSON.parse(saved);
-        } catch (e) {
-            console.error("Failed to parse saved stats", e);
-        }
-    }
-    updateStatsDOM();
-}
-
-function saveStats() {
-    localStorage.setItem('reversi_premium_stats', JSON.stringify(gameStats));
-    updateStatsDOM();
-}
-
-function updateStatsDOM() {
-    document.getElementById('stat-pvp-total').textContent = gameStats.pvp.total;
-    document.getElementById('stat-pvp-black-wins').textContent = gameStats.pvp.blackWins;
-    document.getElementById('stat-pvp-white-wins').textContent = gameStats.pvp.whiteWins;
-    document.getElementById('stat-pvp-draws').textContent = gameStats.pvp.draws;
-
-    document.getElementById('stat-pve-total').textContent = gameStats.pve.total;
-    document.getElementById('stat-pve-player-wins').textContent = gameStats.pve.playerWins;
-    document.getElementById('stat-pve-ai-wins').textContent = gameStats.pve.aiWins;
-    document.getElementById('stat-pve-draws').textContent = gameStats.pve.draws;
-
-    if (!gameStats.online) {
-        gameStats.online = { total: 0, wins: 0, losses: 0, draws: 0 };
-    }
-    document.getElementById('stat-online-total').textContent = gameStats.online.total;
-    document.getElementById('stat-online-wins').textContent = gameStats.online.wins;
-    document.getElementById('stat-online-losses').textContent = gameStats.online.losses;
-    document.getElementById('stat-online-draws').textContent = gameStats.online.draws;
-}
-
-function clearStats() {
-    if (confirm("すべての対戦成績データを削除してもよろしいですか？")) {
-        gameStats = {
-            pvp: { total: 0, blackWins: 0, whiteWins: 0, draws: 0 },
-            pve: { total: 0, playerWins: 0, aiWins: 0, draws: 0 },
-            online: { total: 0, wins: 0, losses: 0, draws: 0 }
-        };
-        saveStats();
-    }
-}
-
-// --- Event Listeners Setup ---
-function setupEventListeners() {
-    btnRestart.addEventListener('click', () => {
-        synth.init();
-        if (gameMode === 'online') {
-            alert("オンライン対戦中は退出してからリセットしてください。");
-            return;
-        }
-        resetGame();
-    });
-    btnUndo.addEventListener('click', () => {
-        synth.init();
-        undoMove();
-    });
-    btnHistory.addEventListener('click', () => {
-        historyModal.classList.remove('hidden');
-    });
-    btnMute.addEventListener('click', toggleMute);
-    
-    selectGameMode.addEventListener('change', (e) => {
-        if (gameMode === 'online' && roomRef) {
-            if (!confirm("オンライン対戦中の部屋から退出しますか？")) {
-                selectGameMode.value = 'online';
-                return;
-            }
-            cleanUpOnlineRoom();
-        }
-
+    // ゲームモード切り替え
+    gameModeSelect.addEventListener("change", (e) => {
         gameMode = e.target.value;
-        const aiGroup = document.getElementById('ai-difficulty-group');
-        const colorGroup = document.getElementById('player-color-group');
-        
-        if (gameMode === 'pvp') {
-            aiGroup.classList.add('hidden');
-            colorGroup.classList.add('hidden');
-            onlineRoomGroup.classList.add('hidden');
-            resetGame();
-        } else if (gameMode === 'pve') {
-            aiGroup.classList.remove('hidden');
-            colorGroup.classList.remove('hidden');
-            onlineRoomGroup.classList.add('hidden');
-            resetGame();
-        } else if (gameMode === 'online') {
-            aiGroup.classList.add('hidden');
-            colorGroup.classList.add('hidden');
-            
-            if (!initFirebase()) {
-                alert("Firebase接続情報が設定されていません。FIREBASE_SETUP.md を読み、app.js の先頭で設定を行ってください。");
-                selectGameMode.value = 'pve';
-                gameMode = 'pve';
-                aiGroup.classList.remove('hidden');
-                colorGroup.classList.remove('hidden');
-                return;
-            }
-            
-            onlineRoomGroup.classList.remove('hidden');
-            showOnlineView('init');
-            resetGame();
+        if (gameMode === "practice") {
+            onlineRoomGroup.classList.add("hidden");
+            practiceStartBtn.classList.remove("hidden");
+        } else {
+            onlineRoomGroup.classList.remove("hidden");
+            practiceStartBtn.classList.add("hidden");
         }
     });
-    
-    selectAiDifficulty.addEventListener('change', (e) => {
-        aiDifficulty = e.target.value;
-        resetGame();
-    });
-    
-    selectPlayerColor.addEventListener('change', (e) => {
-        playerColor = e.target.value === 'black' ? BLACK : WHITE;
-        resetGame();
+    gameModeSelect.dispatchEvent(new Event("change"));
+
+    // ミュートボタン
+    muteBtn.addEventListener("click", () => {
+        sounds.muted = !sounds.muted;
+        document.getElementById("svg-sound-on").classList.toggle("hidden", sounds.muted);
+        document.getElementById("svg-sound-off").classList.toggle("hidden", !sounds.muted);
     });
 
-    selectTheme.addEventListener('change', (e) => {
-        applyTheme(e.target.value);
+    // 練習戦開始
+    practiceStartBtn.addEventListener("click", () => {
+        startPracticeGame();
     });
 
-    btnModalRestart.addEventListener('click', () => {
-        resultModal.classList.add('hidden');
-        if (gameMode === 'online') {
-            alert("対戦を新しく始めるには「退出する」を押して、新しくルームを作成・参加してください。");
-            return;
+    // オンラインルーム作成
+    createRoomBtn.addEventListener("click", () => {
+        if (!isFirebaseEnabled) return;
+        const roomId = Math.floor(100000 + Math.random() * 900000).toString();
+        createOnlineRoom(roomId);
+    });
+
+    // オンラインルーム入室
+    joinRoomBtn.addEventListener("click", () => {
+        if (!isFirebaseEnabled) return;
+        const roomId = inputRoomId.value.trim();
+        if (roomId.length === 6) {
+            joinOnlineRoom(roomId);
+        } else {
+            alert("6桁のルームIDを入力してください。");
         }
-        resetGame();
     });
-    btnModalClose.addEventListener('click', () => {
-        resultModal.classList.add('hidden');
-    });
-    btnHistoryClose.addEventListener('click', () => {
-        historyModal.classList.add('hidden');
-    });
-    btnClearStats.addEventListener('click', clearStats);
 
-    const tabBtns = historyModal.querySelectorAll('.tab-btn');
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            tabBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            const targetId = btn.dataset.tab;
-            historyModal.querySelectorAll('.tab-content').forEach(content => {
-                if (content.id === targetId) {
-                    content.classList.remove('hidden');
-                } else {
-                    content.classList.add('hidden');
-                }
-            });
+    // コピーボタン
+    copyRoomBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(currentRoomId).then(() => {
+            alert("ルームIDをコピーしました！: " + currentRoomId);
         });
     });
 
-    btnReplayPrev.addEventListener('click', () => replayStepTo(replayIndex - 1));
-    btnReplayNext.addEventListener('click', () => replayStepTo(replayIndex + 1));
-    btnReplayAuto.addEventListener('click', toggleReplayAuto);
+    // 退出・解散
+    cancelRoomBtn.addEventListener("click", () => leaveCurrentRoom());
+    leaveRoomBtn.addEventListener("click", () => leaveCurrentRoom());
 
-    btnCreateRoom.addEventListener('click', createOnlineRoom);
-    btnJoinRoom.addEventListener('click', () => {
-        const rId = inputRoomId.value.trim().toUpperCase();
-        if (rId.length !== 6) {
-            alert("正しい6桁のルームIDを入力してください。");
-            return;
+    // ホストによるゲーム開始
+    startGameBtn.addEventListener("click", () => {
+        if (isHost && roomRef) {
+            setupBotsAndStartOnlineGame();
         }
-        joinOnlineRoom(rId);
     });
-    btnCopyRoom.addEventListener('click', copyRoomIdToClipboard);
-    btnCancelRoom.addEventListener('click', cleanUpOnlineRoom);
-    btnLeaveRoom.addEventListener('click', cleanUpOnlineRoom);
-}
 
-function applyTheme(themeName) {
-    document.body.className = '';
-    document.body.classList.add(`theme-${themeName}`);
-}
-
-// --- Timer logic ---
-function startTimers() {
-    clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-        if (!gameActive || replayMode) return;
-        
-        if (turn === BLACK) {
-            timerBlack++;
-            updateTimerDOM(timerBlackEl, timerBlack);
-        } else {
-            timerWhite++;
-            updateTimerDOM(timerWhiteEl, timerWhite);
-        }
-    }, 1000);
-}
-
-function updateTimerDOM(el, seconds) {
-    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const secs = (seconds % 60).toString().padStart(2, '0');
-    el.textContent = `${mins}:${secs}`;
-}
-
-function resetTimers() {
-    clearInterval(timerInterval);
-    timerBlack = 0;
-    timerWhite = 0;
-    updateTimerDOM(timerBlackEl, 0);
-    updateTimerDOM(timerWhiteEl, 0);
-}
-
-// --- Reversi Game Rules Helpers ---
-const DIRECTIONS = [
-    [-1, -1], [-1, 0], [-1, 1],
-    [ 0, -1],          [ 0, 1],
-    [ 1, -1], [ 1, 0], [ 1, 1]
-];
-
-function getFlippedStones(boardState, row, col, color) {
-    if (boardState[row][col] !== EMPTY) return [];
-    
-    const oppColor = color === BLACK ? WHITE : BLACK;
-    const flipped = [];
-    
-    for (const [dr, dc] of DIRECTIONS) {
-        let r = row + dr;
-        let c = col + dc;
-        const temp = [];
-        
-        while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && boardState[r][c] === oppColor) {
-            temp.push({r, c});
-            r += dr;
-            c += dc;
-        }
-        
-        if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && boardState[r][c] === color && temp.length > 0) {
-            flipped.push(...temp);
-        }
-    }
-    
-    return flipped;
-}
-
-function isValidMove(boardState, row, col, color) {
-    return getFlippedStones(boardState, row, col, color).length > 0;
-}
-
-function getValidMoves(boardState, color) {
-    const moves = [];
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (isValidMove(boardState, r, c, color)) {
-                moves.push({r, c});
-            }
-        }
-    }
-    return moves;
-}
-
-// --- Game Logic ---
-function resetGame() {
-    board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
-    const mid = BOARD_SIZE / 2;
-    board[mid - 1][mid - 1] = WHITE;
-    board[mid][mid] = WHITE;
-    board[mid - 1][mid] = BLACK;
-    board[mid][mid - 1] = BLACK;
-    turn = BLACK;
-    gameActive = true;
-    moveHistory = [];
-    gameRecord = [];
-    replayMode = false;
-    replayIndex = -1;
-    clearInterval(replayTimer);
-    
-    btnUndo.disabled = true;
-    replayPanel.classList.add('hidden');
-    
-    gameMode = selectGameMode.value;
-    aiDifficulty = selectAiDifficulty.value;
-    playerColor = selectPlayerColor.value === 'black' ? BLACK : WHITE;
-
-    if (gameMode === 'pvp') {
-        nameBlackEl.textContent = 'プレイヤー1 (黒)';
-        nameWhiteEl.textContent = 'プレイヤー2 (白)';
-        resetTimers();
-        startTimers();
-    } else if (gameMode === 'pve') {
-        if (playerColor === BLACK) {
-            nameBlackEl.textContent = 'あなた (黒)';
-            nameWhiteEl.textContent = 'AI (白)';
-        } else {
-            nameBlackEl.textContent = 'AI (黒)';
-            nameWhiteEl.textContent = 'あなた (白)';
-        }
-        resetTimers();
-        startTimers();
-    } else if (gameMode === 'online') {
-        if (myRole === BLACK) {
-            nameBlackEl.textContent = 'あなた (黒)';
-            nameWhiteEl.textContent = oppConnected ? '対戦相手 (白)' : '待機中... (白)';
-        } else if (myRole === WHITE) {
-            nameBlackEl.textContent = '対戦相手 (黒)';
-            nameWhiteEl.textContent = 'あなた (白)';
-        } else {
-            nameBlackEl.textContent = 'プレイヤー1 (黒)';
-            nameWhiteEl.textContent = 'プレイヤー2 (白)';
-        }
-        
-        resetTimers();
-        if (isOnlineActive) {
-            startTimers();
-        }
-    }
-
-    renderBoard();
-    updateUI();
-    
-    // 先手AIの初手を打つ
-    if (gameMode === 'pve' && playerColor === WHITE) {
-        triggerAiMove();
-    }
-}
-
-function cloneBoard(src) {
-    return src.map(arr => [...arr]);
-}
-
-function saveHistory() {
-    moveHistory.push({
-        board: cloneBoard(board),
-        turn: turn,
-        timerBlack: timerBlack,
-        timerWhite: timerWhite,
-        gameActive: gameActive
+    // アクションボタン
+    btnPass.addEventListener("click", () => submitActionVote("pass"));
+    btnTsumo.addEventListener("click", () => submitActionVote("tsumo"));
+    btnRon.addEventListener("click", () => submitActionVote("ron"));
+    btnRiichi.addEventListener("click", () => {
+        sounds.playAction();
+        // リーチは即時宣言可能
+        declareRiichi();
     });
-    btnUndo.disabled = false;
-}
+    btnPon.addEventListener("click", () => submitActionVote("pon"));
+    btnChi.addEventListener("click", () => submitActionVote("chi"));
+    btnKan.addEventListener("click", () => submitActionVote("kan"));
 
-function renderBoard() {
-    boardEl.innerHTML = '';
-    const canPlay = gameActive && (!replayMode);
-    
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
-            cell.dataset.row = r;
-            cell.dataset.col = c;
-            
-            // オセロ盤の星（黒点）の位置: 2, 5
-            if ((r === 2 || r === 5) && (c === 2 || c === 5)) {
-                cell.classList.add('marker');
-            }
-            
-            const state = board[r][c];
-            if (state !== EMPTY) {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'disc-wrapper';
-                
-                const container = document.createElement('div');
-                container.className = `disc-container ${state === WHITE ? 'white' : ''}`;
-                
-                const isLastMove = gameRecord.length > 0 && 
-                                   gameRecord[gameRecord.length - 1].r === r && 
-                                   gameRecord[gameRecord.length - 1].c === c;
-                if (isLastMove && !replayMode) {
-                    wrapper.classList.add('new-placement');
-                }
-                
-                const blackFace = document.createElement('div');
-                blackFace.className = 'disc-face black';
-                
-                const whiteFace = document.createElement('div');
-                whiteFace.className = 'disc-face white';
-                
-                container.appendChild(blackFace);
-                container.appendChild(whiteFace);
-                wrapper.appendChild(container);
-                cell.appendChild(wrapper);
-            }
-            
-            // 空いているマスで、かつ挟める場所（合法手）なら置くことが可能
-            if (state === EMPTY && canPlay && isValidMove(board, r, c, turn)) {
-                const isAiTurn = gameMode === 'pve' && turn !== playerColor;
-                const isOnlineTurnLocked = gameMode === 'online' && (!isOnlineActive || turn !== myRole);
-                
-                if (!isAiTurn && !isOnlineTurnLocked) {
-                    cell.classList.add('hint');
-                    cell.classList.add(turn === BLACK ? 'player-black-turn' : 'player-white-turn');
-                    cell.addEventListener('click', () => handleCellClick(r, c));
-                }
-            }
-
-            boardEl.appendChild(cell);
-        }
-    }
-}
-
-function updateUI() {
-    // 置かれている石の数をカウントしてスコアボードに表示
-    let blackCount = 0;
-    let whiteCount = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (board[r][c] === BLACK) blackCount++;
-            if (board[r][c] === WHITE) whiteCount++;
-        }
-    }
-    
-    scoreBlackEl.textContent = blackCount;
-    scoreWhiteEl.textContent = whiteCount;
-    
-    if (turn === BLACK) {
-        playerBlackCard.classList.add('active');
-        playerWhiteCard.classList.remove('active');
-        statusMessageEl.textContent = `${nameBlackEl.textContent}のターンです (黒)`;
-    } else {
-        playerBlackCard.classList.remove('active');
-        playerWhiteCard.classList.add('active');
-        statusMessageEl.textContent = `${nameWhiteEl.textContent}のターンです (白)`;
-    }
-    
-    const isAiThinking = gameActive && gameMode === 'pve' && turn !== playerColor && !replayMode;
-    if (isAiThinking) {
-        if (turn === BLACK) {
-            playerBlackCard.querySelector('.thinking-spinner').classList.remove('hidden');
+    // モーダル
+    resultNextBtn.addEventListener("click", () => {
+        if (gameMode === "practice") {
+            handleNextRoundPractice();
         } else {
-            playerWhiteCard.querySelector('.thinking-spinner').classList.remove('hidden');
+            handleNextRoundOnline();
         }
-        statusMessageEl.textContent = "AI思考中...";
+    });
+
+    gameoverCloseBtn.addEventListener("click", () => {
+        gameoverModal.classList.add("hidden");
+        resetToLobby();
+    });
+}
+
+function updateTheme(theme) {
+    document.body.className = `theme-${theme}`;
+}
+
+// --- 練習戦 (Offline / Practice Mode) ---
+
+function startPracticeGame() {
+    gameMode = "practice";
+    isHost = true;
+    mySeat = 0; // 自分が東家固定でスタート
+
+    localGameState = {
+        status: "playing",
+        rules: { akaDora: ruleAkaDoraCheckbox.checked },
+        players: [
+            { name: myName, uid: myUid, isBot: false, seat: 0 },
+            { name: "COM1", uid: "bot1", isBot: true, seat: 1 },
+            { name: "COM2", uid: "bot2", isBot: true, seat: 2 },
+            { name: "COM3", uid: "bot3", isBot: true, seat: 3 }
+        ],
+        oya: 0,
+        currentTurn: 0,
+        turnState: "tsumo",
+        wall: [],
+        doraIndicators: [],
+        hands: [[], [], [], []],
+        discards: [[], [], [], []],
+        melds: [[], [], [], []],
+        lastDiscard: null,
+        lastDiscardSeat: -1,
+        actionVotes: {},
+        scores: [25000, 25000, 25000, 25000],
+        kyoku: 0,
+        honba: 0,
+        kyoutaku: 0,
+        riichiSeats: []
+    };
+
+    welcomeScreen.classList.add("hidden");
+    mahjongTable.classList.remove("hidden");
+    
+    startNewRoundPractice();
+}
+
+function startNewRoundPractice() {
+    const akaDora = localGameState.rules.akaDora;
+    localGameState.wall = MahjongEngine.createWall(akaDora);
+    
+    // 配牌 (各13枚)
+    localGameState.hands = [[], [], [], []];
+    for (let i = 0; i < 13; i++) {
+        for (let seat = 0; seat < 4; seat++) {
+            localGameState.hands[seat].push(localGameState.wall.pop());
+        }
+    }
+
+    // 各プレイヤーの手牌をソート
+    for (let seat = 0; seat < 4; seat++) {
+        localGameState.hands[seat] = MahjongEngine.sortHand(localGameState.hands[seat]);
+    }
+
+    // ドラ表示牌
+    localGameState.doraIndicators = [localGameState.wall.pop()];
+    localGameState.discards = [[], [], [], []];
+    localGameState.melds = [[], [], [], []];
+    localGameState.riichiSeats = [];
+    localGameState.actionVotes = {};
+    localGameState.lastDiscard = null;
+    localGameState.lastDiscardSeat = -1;
+
+    // 親のツモからスタート
+    localGameState.currentTurn = localGameState.oya;
+    localGameState.turnState = "tsumo";
+    
+    // 初回ツモ
+    const tsumoTile = localGameState.wall.pop();
+    localGameState.hands[localGameState.currentTurn].push(tsumoTile);
+
+    renderGame(localGameState);
+    checkTurnAction();
+}
+
+function handleNextRoundPractice() {
+    resultModal.classList.add("hidden");
+    if (localGameState.status === "gameover") {
+        showGameOverScreen();
     } else {
-        playerBlackCard.querySelector('.thinking-spinner').classList.add('hidden');
-        playerWhiteCard.querySelector('.thinking-spinner').classList.add('hidden');
+        startNewRoundPractice();
     }
 }
 
-function handleCellClick(row, col) {
-    if (!gameActive || replayMode) return;
-    
-    if (gameMode === 'pve' && turn !== playerColor) return;
-    
-    if (gameMode === 'online') {
-        if (!isOnlineActive) {
-            alert("対戦相手を待っています...");
-            return;
-        }
-        if (turn !== myRole) return;
-    }
-    
-    executeMove(row, col);
-}
+// --- オンライン対戦 (Online Mode via Firebase) ---
 
-function executeMove(row, col, isFromOnlineSync = false) {
-    if (!isFromOnlineSync) {
-        saveHistory();
-    }
-    
-    // 挟まれた石を取得して裏返す
-    const flipped = getFlippedStones(board, row, col, turn);
-    board[row][col] = turn;
-    for (const f of flipped) {
-        board[f.r][f.c] = turn;
-    }
-    
-    gameRecord.push({ r: row, c: col, t: turn });
-    
-    if (isFromOnlineSync) {
-        synth.playPlaceSoundOnline();
-    } else {
-        synth.playPlaceSound();
-    }
-    
-    renderBoard();
-    updateUI();
-    
-    // 石の数をカウント
-    let blackCount = 0;
-    let whiteCount = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (board[r][c] === BLACK) blackCount++;
-            if (board[r][c] === WHITE) whiteCount++;
-        }
-    }
-    
-    // ゲーム終了判定
-    const nextPlayer = turn === BLACK ? WHITE : BLACK;
-    const nextMoves = getValidMoves(board, nextPlayer);
-    const currentMoves = getValidMoves(board, turn);
-    
-    let isOver = (nextMoves.length === 0 && currentMoves.length === 0);
-    if (blackCount === 0 || whiteCount === 0 || (blackCount + whiteCount === BOARD_SIZE * BOARD_SIZE)) {
-        isOver = true;
-    }
-    
-    if (isOver) {
-        setTimeout(() => {
-            let winner = null;
-            if (blackCount > whiteCount) winner = BLACK;
-            else if (whiteCount > blackCount) winner = WHITE;
-            endGame(winner);
-        }, 300);
-        return;
-    }
-    
-    if (gameMode === 'online' && !isFromOnlineSync) {
-        // オンライン対戦の場合、手番を交代してFirebaseへ送信
-        setTimeout(() => {
-            let nextTurnColor = nextPlayer;
-            let isPass = false;
-            if (nextMoves.length === 0) {
-                // 相手がパスの場合、ターンは自分のままでFirebaseへ送信
-                nextTurnColor = turn;
-                isPass = true;
-                alert("対戦相手に置ける場所がないため、パスになります。");
-            }
-            sendMoveToFirebase(row, col, nextTurnColor, isPass);
-        }, 400);
-    } else if (gameMode !== 'online') {
-        // 通常の交代
-        setTimeout(() => {
-            advanceTurn();
-        }, 300);
-    }
-}
+function createOnlineRoom(roomId) {
+    currentRoomId = roomId;
+    isHost = true;
+    mySeat = 0;
 
-function advanceTurn() {
-    if (!gameActive) return;
+    roomRef = database.ref("rooms/" + roomId);
     
-    const nextPlayer = turn === BLACK ? WHITE : BLACK;
-    const nextMoves = getValidMoves(board, nextPlayer);
-    
-    if (nextMoves.length > 0) {
-        // 次のプレイヤーが置ける場合は通常交代
-        turn = nextPlayer;
-    } else {
-        // 次のプレイヤーが置けない（パス）の場合
-        const currentMoves = getValidMoves(board, turn);
-        if (currentMoves.length > 0) {
-            // 自分は置けるので、ターンは自分のまま（パスを挟む）
-            const nextPlayerName = nextPlayer === BLACK ? nameBlackEl.textContent : nameWhiteEl.textContent;
-            showPassMessage(nextPlayerName);
-        } else {
-            // 両者置けない場合はゲーム終了
-            let blackCount = 0;
-            let whiteCount = 0;
-            for (let r = 0; r < BOARD_SIZE; r++) {
-                for (let c = 0; c < BOARD_SIZE; c++) {
-                    if (board[r][c] === BLACK) blackCount++;
-                    if (board[r][c] === WHITE) whiteCount++;
-                }
-            }
-            let winner = null;
-            if (blackCount > whiteCount) winner = BLACK;
-            else if (whiteCount > blackCount) winner = WHITE;
-            endGame(winner);
-            return;
-        }
-    }
-    
-    renderBoard();
-    updateUI();
-    
-    if (gameMode === 'pve' && turn !== playerColor) {
-        triggerAiMove();
-    }
-}
+    const initialRoomData = {
+        status: "waiting",
+        rules: { akaDora: ruleAkaDoraCheckbox.checked },
+        players: [
+            { uid: myUid, name: myName, isReady: true, isHost: true, seat: 0 }
+        ]
+    };
 
-function showPassMessage(playerName) {
-    statusMessageEl.textContent = `${playerName}がパスしました。`;
-    statusMessageEl.classList.add('pulse-highlight');
-    setTimeout(() => {
-        statusMessageEl.classList.remove('pulse-highlight');
-        updateUI();
-    }, 1500);
-}
-
-// --- 勝敗判定ロジック (オセロのゲーム終了判定として代用) ---
-function checkWin(boardState, row, col) {
-    const blackMoves = getValidMoves(boardState, BLACK);
-    const whiteMoves = getValidMoves(boardState, WHITE);
-    if (blackMoves.length === 0 && whiteMoves.length === 0) {
-        return true;
-    }
-    
-    let blackCount = 0;
-    let whiteCount = 0;
-    let emptyCount = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (boardState[r][c] === BLACK) blackCount++;
-            else if (boardState[r][c] === WHITE) whiteCount++;
-            else emptyCount++;
-        }
-    }
-    
-    if (blackCount === 0 || whiteCount === 0 || emptyCount === 0) {
-        return true;
-    }
-    
-    return false;
-}
-
-// --- Undo Logic ---
-function undoMove() {
-    if (moveHistory.length === 0 || replayMode) return;
-    
-    // In AI Mode, we need to undo both AI and Player moves to get back to player's turn
-    if (gameMode === 'pve' && moveHistory.length >= 2) {
-        // Pop last AI turn state
-        moveHistory.pop();
-        gameRecord.pop();
-        // Pop last Player turn state
-        const prevState = moveHistory.pop();
-        gameRecord.pop();
+    roomRef.set(initialRoomData).then(() => {
+        displayRoomId.textContent = roomId;
+        lobbyInitView.classList.add("hidden");
+        lobbyWaitingView.classList.remove("hidden");
+        startGameBtn.classList.remove("hidden"); // ホストのみ開始ボタン表示
         
-        restoreState(prevState);
-    } else {
-        // Standard PvP single move undo
-        const prevState = moveHistory.pop();
-        gameRecord.pop();
-        
-        restoreState(prevState);
-    }
-    
-    if (moveHistory.length === 0) {
-        btnUndo.disabled = true;
-    }
-    
-    renderBoard();
-    updateUI();
-}
+        welcomeScreen.classList.add("hidden");
+        mahjongTable.classList.add("hidden");
 
-function restoreState(state) {
-    board = cloneBoard(state.board);
-    turn = state.turn;
-    timerBlack = state.timerBlack;
-    timerWhite = state.timerWhite;
-    gameActive = state.gameActive;
-    
-    updateTimerDOM(timerBlackEl, timerBlack);
-    updateTimerDOM(timerWhiteEl, timerWhite);
-}
-
-const EVAL_MAP = [
-    [120, -20,  20,   5,   5,  20, -20, 120],
-    [-20, -40,  -5,  -5,  -5,  -5, -40, -20],
-    [ 20,  -5,  15,   3,   3,  15,  -5,  20],
-    [  5,  -5,   3,   3,   3,   3,  -5,   5],
-    [  5,  -5,   3,   3,   3,   3,  -5,   5],
-    [ 20,  -5,  15,   3,   3,  15,  -5,  20],
-    [-20, -40,  -5,  -5,  -5,  -5, -40, -20],
-    [120, -20,  20,   5,   5,  20, -20, 120]
-];
-
-// --- AI Turn Orchestrator ---
-function triggerAiMove() {
-    updateUI();
-    const delay = 600 + Math.random() * 800; // Simulated thinking time for UI organic feel
-    
-    setTimeout(() => {
-        if (!gameActive || turn === playerColor) return;
-        
-        const moves = getValidMoves(board, turn);
-        if (moves.length === 0) {
-            advanceTurn();
-            return;
-        }
-        
-        let selectedMove = null;
-        if (aiDifficulty === 'easy') {
-            selectedMove = getEasyAiMove(board, turn);
-        } else if (aiDifficulty === 'medium') {
-            selectedMove = getMediumAiMove(board, turn);
-        } else {
-            selectedMove = getHardAiMove(board, turn);
-        }
-        
-        if (selectedMove) {
-            executeMove(selectedMove[0], selectedMove[1]);
-        }
-    }, delay);
-}
-
-// 盤面全体の評価関数（AI用）
-function evaluateBoard(boardState, aiColor) {
-    const oppColor = aiColor === BLACK ? WHITE : BLACK;
-    let score = 0;
-    
-    // 1. 位置の評価
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (boardState[r][c] === aiColor) {
-                score += EVAL_MAP[r][c];
-            } else if (boardState[r][c] === oppColor) {
-                score -= EVAL_MAP[r][c];
-            }
-        }
-    }
-    
-    // 2. 合法手の数（モビリティ）の差
-    const myMoves = getValidMoves(boardState, aiColor).length;
-    const oppMoves = getValidMoves(boardState, oppColor).length;
-    score += (myMoves - oppMoves) * 15;
-    
-    return score;
-}
-
-// 簡単AI：合法手からランダムに選択
-function getEasyAiMove(boardState, aiColor) {
-    const moves = getValidMoves(boardState, aiColor);
-    if (moves.length === 0) return null;
-    const idx = Math.floor(Math.random() * moves.length);
-    const m = moves[idx];
-    return [m.r, m.c];
-}
-
-// 普通AI：1手評価の最も高い場所を選択
-function getMediumAiMove(boardState, aiColor) {
-    const moves = getValidMoves(boardState, aiColor);
-    if (moves.length === 0) return null;
-    
-    let bestMove = null;
-    let bestScore = -Infinity;
-    
-    // 同スコアの場合の偏りを防ぐためにシャッフル
-    moves.sort(() => Math.random() - 0.5);
-    
-    for (const m of moves) {
-        const flipped = getFlippedStones(boardState, m.r, m.c, aiColor);
-        // 評価値 ＝ 位置の価値 ＋ ひっくり返した枚数
-        const score = EVAL_MAP[m.r][m.c] + flipped.length * 2;
-        if (score > bestScore) {
-            bestScore = score;
-            bestMove = [m.r, m.c];
-        }
-    }
-    return bestMove;
-}
-
-// 難しいAI：アルファベータ法による先読み（深さ4）
-function getHardAiMove(boardState, aiColor) {
-    const depth = 4;
-    const result = alphaBeta(boardState, depth, -Infinity, Infinity, true, aiColor, aiColor);
-    return result.move ? [result.move.r, result.move.c] : getMediumAiMove(boardState, aiColor);
-}
-
-function alphaBeta(boardState, depth, alpha, beta, isMaximizing, currentTurn, aiColor) {
-    const oppColor = aiColor === BLACK ? WHITE : BLACK;
-    const playerColor = isMaximizing ? aiColor : oppColor;
-    const moves = getValidMoves(boardState, playerColor);
-    
-    // 深さに達したか、終局の場合
-    if (depth === 0 || (moves.length === 0 && getValidMoves(boardState, playerColor === BLACK ? WHITE : BLACK).length === 0)) {
-        return { score: evaluateBoard(boardState, aiColor), move: null };
-    }
-    
-    // パスの場合
-    if (moves.length === 0) {
-        // ターンを交代して先読みを継続
-        return alphaBeta(boardState, depth - 1, alpha, beta, !isMaximizing, playerColor === BLACK ? WHITE : BLACK, aiColor);
-    }
-    
-    // 探索順序を評価マップでソート
-    moves.sort((a, b) => EVAL_MAP[b.r][b.c] - EVAL_MAP[a.r][a.c]);
-    
-    let bestMove = null;
-    
-    if (isMaximizing) {
-        let maxEval = -Infinity;
-        for (const m of moves) {
-            // シミュレーション
-            const nextBoard = cloneBoard(boardState);
-            const flipped = getFlippedStones(nextBoard, m.r, m.c, playerColor);
-            nextBoard[m.r][m.c] = playerColor;
-            for (const f of flipped) {
-                nextBoard[f.r][f.c] = playerColor;
-            }
-            
-            const nextTurn = playerColor === BLACK ? WHITE : BLACK;
-            const ev = alphaBeta(nextBoard, depth - 1, alpha, beta, false, nextTurn, aiColor);
-            
-            if (ev.score > maxEval) {
-                maxEval = ev.score;
-                bestMove = m;
-            }
-            alpha = Math.max(alpha, ev.score);
-            if (beta <= alpha) {
-                break; // Betaカット
-            }
-        }
-        return { score: maxEval, move: bestMove };
-    } else {
-        let minEval = Infinity;
-        for (const m of moves) {
-            // シミュレーション
-            const nextBoard = cloneBoard(boardState);
-            const flipped = getFlippedStones(nextBoard, m.r, m.c, playerColor);
-            nextBoard[m.r][m.c] = playerColor;
-            for (const f of flipped) {
-                nextBoard[f.r][f.c] = playerColor;
-            }
-            
-            const nextTurn = playerColor === BLACK ? WHITE : BLACK;
-            const ev = alphaBeta(nextBoard, depth - 1, alpha, beta, true, nextTurn, aiColor);
-            
-            if (ev.score < minEval) {
-                minEval = ev.score;
-                bestMove = m;
-            }
-            beta = Math.min(beta, ev.score);
-            if (beta <= alpha) {
-                break; // Alphaカット
-            }
-        }
-        return { score: minEval, move: bestMove };
-    }
-}
-
-// --- End Game Handler ---
-function endGame(winnerColor) {
-    gameActive = false;
-    clearInterval(timerInterval);
-    
-    // 石の総数を数える
-    let blackCount = 0;
-    let whiteCount = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (board[r][c] === BLACK) blackCount++;
-            if (board[r][c] === WHITE) whiteCount++;
-        }
-    }
-    
-    finalScoreBlackEl.textContent = blackCount;
-    finalScoreWhiteEl.textContent = whiteCount;
-    
-    if (gameMode === 'pvp') {
-        finalNameBlackEl.textContent = "黒 (P1)";
-        finalNameWhiteEl.textContent = "白 (P2)";
-        
-        gameStats.pvp.total++;
-        if (winnerColor === BLACK) {
-            winnerTextEl.textContent = "プレイヤー1 (黒) の勝ち！";
-            gameStats.pvp.blackWins++;
-            synth.playWinSound();
-        } else if (winnerColor === WHITE) {
-            winnerTextEl.textContent = "プレイヤー2 (白) の勝ち！";
-            gameStats.pvp.whiteWins++;
-            synth.playWinSound();
-        } else {
-            winnerTextEl.textContent = "引き分け！";
-            gameStats.pvp.draws++;
-            synth.playDrawSound();
-        }
-    } else if (gameMode === 'pve') {
-        finalNameBlackEl.textContent = playerColor === BLACK ? "あなた (黒)" : "AI (黒)";
-        finalNameWhiteEl.textContent = playerColor === WHITE ? "あなた (白)" : "AI (白)";
-        
-        gameStats.pve.total++;
-        if (winnerColor === playerColor) {
-            winnerTextEl.textContent = "あなたの勝利！";
-            gameStats.pve.playerWins++;
-            synth.playWinSound();
-        } else if (winnerColor !== null) {
-            winnerTextEl.textContent = "AI (コンピュータ) の勝利！";
-            gameStats.pve.aiWins++;
-            synth.playLoseSound();
-        } else {
-            winnerTextEl.textContent = "引き分け！";
-            gameStats.pve.draws++;
-            synth.playDrawSound();
-        }
-    } else if (gameMode === 'online') {
-        finalNameBlackEl.textContent = myRole === BLACK ? "あなた (黒)" : "対戦相手 (黒)";
-        finalNameWhiteEl.textContent = myRole === WHITE ? "あなた (白)" : "対戦相手 (白)";
-        
-        gameStats.online.total++;
-        if (winnerColor === myRole) {
-            winnerTextEl.textContent = "あなたの勝利！";
-            gameStats.online.wins++;
-            synth.playWinSound();
-        } else if (winnerColor !== null) {
-            winnerTextEl.textContent = "対戦相手の勝利！";
-            gameStats.online.losses++;
-            synth.playLoseSound();
-        } else {
-            winnerTextEl.textContent = "引き分け！";
-            gameStats.online.draws++;
-            synth.playDrawSound();
-        }
-    }
-    
-    saveStats();
-    
-    // 終了理由
-    if (winnerColor !== null) {
-        gameEndReasonEl.textContent = `石の数: 黒 ${blackCount} 石 vs 白 ${whiteCount} 石 で、${winnerColor === BLACK ? '黒' : '白'}の勝利です！`;
-    } else {
-        gameEndReasonEl.textContent = `石の数: 黒 ${blackCount} 石 vs 白 ${whiteCount} 石 で、引き分けです。`;
-    }
-    
-    replayMode = false;
-    btnUndo.disabled = true;
-    
-    setTimeout(() => {
-        resultModal.classList.remove('hidden');
-        statusMessageEl.textContent = "ゲーム終了。棋譜レビューが可能です。";
-        setupReplayPanel();
-    }, 1000);
-}
-
-// --- Replay Review Mode Logic ---
-function setupReplayPanel() {
-    replayMode = true;
-    replayIndex = gameRecord.length;
-    replayPanel.classList.remove('hidden');
-    updateReplayUI();
-}
-
-function updateReplayUI() {
-    replayStepsEl.textContent = `${replayIndex} / ${gameRecord.length}`;
-    btnReplayPrev.disabled = replayIndex <= 0;
-    btnReplayNext.disabled = replayIndex >= gameRecord.length;
-}
-
-function replayStepTo(index) {
-    if (!replayMode || index < 0 || index > gameRecord.length) return;
-    
-    clearInterval(replayTimer);
-    setReplayPlayIconState(false);
-    
-    replayIndex = index;
-    reconstructBoardAtStep(replayIndex);
-    updateReplayUI();
-}
-
-function reconstructBoardAtStep(stepCount) {
-    board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
-    
-    for (let i = 0; i < stepCount; i++) {
-        const move = gameRecord[i];
-        board[move.r][move.c] = move.t;
-    }
-    
-    let blackCount = 0;
-    let whiteCount = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (board[r][c] === BLACK) blackCount++;
-            if (board[r][c] === WHITE) whiteCount++;
-        }
-    }
-    scoreBlackEl.textContent = blackCount;
-    scoreWhiteEl.textContent = whiteCount;
-    
-    if (stepCount < gameRecord.length) {
-        turn = gameRecord[stepCount].t;
-    } else {
-        turn = gameRecord[gameRecord.length - 1].t === BLACK ? WHITE : BLACK;
-    }
-    
-    renderBoard();
-    
-    // 直前の手をハイライト
-    if (stepCount > 0) {
-        const lastMove = gameRecord[stepCount - 1];
-        const cellEl = boardEl.querySelector(`[data-row="${lastMove.r}"][data-col="${lastMove.c}"]`);
-        if (cellEl) {
-            cellEl.style.backgroundColor = 'var(--cell-hover)';
-        }
-    }
-}
-
-function toggleReplayAuto() {
-    if (replayTimer) {
-        clearInterval(replayTimer);
-        replayTimer = null;
-        setReplayPlayIconState(false);
-    } else {
-        if (replayIndex >= gameRecord.length) {
-            replayIndex = 0;
-        }
-        setReplayPlayIconState(true);
-        playNextReplayFrame();
-    }
-}
-
-function playNextReplayFrame() {
-    if (replayIndex >= gameRecord.length) {
-        clearInterval(replayTimer);
-        replayTimer = null;
-        setReplayPlayIconState(false);
-        return;
-    }
-    
-    replayTimer = setTimeout(() => {
-        replayIndex++;
-        reconstructBoardAtStep(replayIndex);
-        updateReplayUI();
-        synth.playPlaceSound();
-        playNextReplayFrame();
-    }, 800);
-}
-
-function setReplayPlayIconState(isPlaying) {
-    if (isPlaying) {
-        svgPlay.classList.add('hidden');
-        svgPause.classList.remove('hidden');
-    } else {
-        svgPlay.classList.remove('hidden');
-        svgPause.classList.add('hidden');
-    }
-}
-
-// --- Online Multiplayer Utility Functions ---
-
-function initFirebase() {
-    if (database) return true;
-    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
-        return false;
-    }
-    try {
-        firebase.initializeApp(firebaseConfig);
-        database = firebase.database();
-        return true;
-    } catch (e) {
-        console.error("Firebase Initialization Failed", e);
-        return false;
-    }
-}
-
-function showOnlineView(viewType) {
-    onlineInitView.classList.add('hidden');
-    onlineWaitingView.classList.add('hidden');
-    onlineActiveView.classList.add('hidden');
-    
-    if (viewType === 'init') {
-        onlineInitView.classList.remove('hidden');
-    } else if (viewType === 'waiting') {
-        onlineWaitingView.classList.remove('hidden');
-    } else if (viewType === 'active') {
-        onlineActiveView.classList.remove('hidden');
-    }
-}
-
-function generateRoomId() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-}
-
-function createOnlineRoom() {
-    if (!initFirebase()) return;
-    
-    roomId = generateRoomId();
-    myRole = BLACK;
-    playerColor = BLACK;
-    oppConnected = false;
-    isOnlineActive = false;
-    
-    displayRoomId.textContent = roomId;
-    showOnlineView('waiting');
-    
-    const initialBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
-    const mid = BOARD_SIZE / 2;
-    initialBoard[mid - 1][mid - 1] = WHITE;
-    initialBoard[mid][mid] = WHITE;
-    initialBoard[mid - 1][mid] = BLACK;
-    initialBoard[mid][mid - 1] = BLACK;
-    roomRef = database.ref(`rooms/${roomId}`);
-    
-    roomRef.set({
-        state: 'waiting',
-        board: initialBoard,
-        turn: BLACK,
-        blackActive: true,
-        whiteActive: false,
-        lastMove: null
-    }).then(() => {
-        roomRef.onDisconnect().remove();
         listenToRoomChanges();
-    }).catch(err => {
-        alert("部屋の作成に失敗しました。");
-        cleanUpOnlineRoom();
     });
 }
 
-function joinOnlineRoom(targetRoomId) {
-    if (!initFirebase()) return;
-    
-    roomId = targetRoomId;
-    myRole = WHITE;
-    playerColor = WHITE;
-    
-    database.ref(`rooms/${roomId}`).once('value').then(snapshot => {
-        const data = snapshot.val();
-        if (!data) {
-            alert("指定されたルームIDが存在しません。");
+function joinOnlineRoom(roomId) {
+    currentRoomId = roomId;
+    isHost = false;
+
+    roomRef = database.ref("rooms/" + roomId);
+    roomRef.once("value").then(snapshot => {
+        if (!snapshot.exists()) {
+            alert("ルームが見つかりません。");
             return;
         }
-        if (data.whiteActive) {
-            alert("この部屋は既に満員です。");
+
+        const roomData = snapshot.val();
+        if (roomData.status !== "waiting") {
+            alert("このゲームはすでに開始されています。");
             return;
         }
+
+        const players = roomData.players || [];
+        if (players.length >= 4) {
+            alert("ルームが満員です。");
+            return;
+        }
+
+        mySeat = players.length;
+        const newPlayer = {
+            uid: myUid,
+            name: myName,
+            isReady: true,
+            isHost: false,
+            seat: mySeat
+        };
+
+        players.push(newPlayer);
         
-        roomRef = database.ref(`rooms/${roomId}`);
-        
-        roomRef.update({
-            whiteActive: true,
-            state: 'playing'
-        }).then(() => {
-            roomRef.child('whiteActive').onDisconnect().set(false);
-            isOnlineActive = true;
-            oppConnected = true;
-            showOnlineView('active');
+        roomRef.child("players").set(players).then(() => {
+            displayRoomId.textContent = roomId;
+            lobbyInitView.classList.add("hidden");
+            lobbyWaitingView.classList.remove("hidden");
+            startGameBtn.classList.add("hidden"); // ゲストは非表示
+
+            welcomeScreen.classList.add("hidden");
+            mahjongTable.classList.add("hidden");
+
             listenToRoomChanges();
         });
-    }).catch(err => {
-        alert("入室に失敗しました。");
     });
 }
 
 function listenToRoomChanges() {
-    if (!roomRef) return;
-    
-    roomRef.on('value', snapshot => {
-        const data = snapshot.val();
-        if (!data) {
-            if (isOnlineActive && gameActive) {
-                handleOpponentLeave("対戦相手が退出、または切断されました。");
-            }
+    roomRef.on("value", snapshot => {
+        if (!snapshot.exists()) {
+            resetToLobby();
             return;
         }
-        
-        if (data.state === 'closed') {
-            handleOpponentLeave("対戦相手がゲームを退出しました。");
-            return;
-        }
-        
-        if (myRole === BLACK && !isOnlineActive) {
-            if (data.whiteActive) {
-                isOnlineActive = true;
-                oppConnected = true;
-                showOnlineView('active');
-                
-                roomRef.onDisconnect().update({ state: 'closed' });
-                resetGame();
-            }
-        }
-        
-        if (isOnlineActive) {
-            const incomingBoard = data.board;
-            const incomingTurn = data.turn;
+
+        const roomData = snapshot.val();
+        localGameState = roomData;
+
+        // ロビーリストの描画
+        updateLobbyUI(roomData.players || []);
+
+        if (roomData.status === "playing") {
+            // 対局画面の切り替え
+            lobbyWaitingView.classList.add("hidden");
+            lobbyActiveView.classList.remove("hidden");
+            welcomeScreen.classList.add("hidden");
+            mahjongTable.classList.remove("hidden");
+
+            renderGame(roomData);
             
-            if (incomingTurn === EMPTY && gameActive) {
-                // 対戦相手が勝敗を決めたときの処理
-                board = incomingBoard;
-                renderBoard();
-                
-                let blackCount = 0;
-                let whiteCount = 0;
-                for (let r = 0; r < BOARD_SIZE; r++) {
-                    for (let c = 0; c < BOARD_SIZE; c++) {
-                        if (board[r][c] === BLACK) blackCount++;
-                        if (board[r][c] === WHITE) whiteCount++;
-                    }
-                }
-                let winner = null;
-                if (blackCount > whiteCount) winner = BLACK;
-                else if (whiteCount > blackCount) winner = WHITE;
-                
-                endGame(winner);
-                return;
+            // 進行マネージャのトリガー
+            if (isHost) {
+                runHostLogic();
+            } else {
+                runClientLogic();
             }
-            
-            if (incomingTurn !== turn) {
-                if (data.lastMove && data.lastMove.t !== (myRole === BLACK ? 'black' : 'white')) {
-                    board = data.board;
-                    turn = incomingTurn;
-                    
-                    const oppColor = myRole === BLACK ? WHITE : BLACK;
-                    
-                    if (!data.lastMove.isPass) {
-                        gameRecord.push({ r: data.lastMove.r, c: data.lastMove.c, t: oppColor });
-                        synth.playPlaceSoundOnline();
-                    } else {
-                        const oppName = myRole === BLACK ? nameWhiteEl.textContent : nameBlackEl.textContent;
-                        showPassMessage(oppName);
-                    }
-                    
-                    renderBoard();
-                    updateUI();
-                    
-                    // 相手の打点によって終局したかチェック
-                    if (checkWin(board, data.lastMove.r, data.lastMove.c)) {
-                        setTimeout(() => {
-                            let blackCount = 0;
-                            let whiteCount = 0;
-                            for (let r = 0; r < BOARD_SIZE; r++) {
-                                for (let c = 0; c < BOARD_SIZE; c++) {
-                                    if (board[r][c] === BLACK) blackCount++;
-                                    if (board[r][c] === WHITE) whiteCount++;
-                                }
-                            }
-                            let winner = null;
-                            if (blackCount > whiteCount) winner = BLACK;
-                            else if (whiteCount > blackCount) winner = WHITE;
-                            
-                            endGame(winner);
-                            roomRef.update({ turn: EMPTY });
-                        }, 300);
-                    }
-                } else {
-                    board = incomingBoard;
-                    turn = incomingTurn;
-                    renderBoard();
-                    updateUI();
-                }
-            }
+        } else if (roomData.status === "roundEnd") {
+            renderGame(roomData);
+            showRoundResultModal(roomData);
+        } else if (roomData.status === "gameover") {
+            showGameOverScreen();
         }
     });
 }
 
-function sendMoveToFirebase(row, col, nextTurn, isPass = false) {
-    if (!roomRef) return;
-    
-    let finalNextTurn = nextTurn;
-    if (checkWin(board, row, col)) {
-        finalNextTurn = EMPTY;
+function updateLobbyUI(players) {
+    // ロビースロットの初期化
+    for (let i = 0; i < 4; i++) {
+        const nameEl = document.getElementById("lobby-p" + i);
+        if (nameEl) nameEl.textContent = "空きスロット (COM)";
     }
-    
-    roomRef.update({
-        board: board,
-        turn: finalNextTurn,
-        lastMove: {
-            r: row,
-            c: col,
-            t: myRole === BLACK ? 'black' : 'white',
-            isPass: isPass
+
+    players.forEach(p => {
+        const nameEl = document.getElementById("lobby-p" + p.seat);
+        if (nameEl) {
+            nameEl.textContent = p.name + (p.uid === myUid ? " (あなた)" : "");
         }
     });
 }
 
-function cleanUpOnlineRoom() {
-    if (roomRef) {
-        if (myRole === BLACK) {
-            roomRef.remove();
-        } else {
-            roomRef.update({
-                whiteActive: false,
-                state: 'closed'
+function setupBotsAndStartOnlineGame() {
+    // 参加人数を確認し、4人未満ならCOMを補填
+    const players = localGameState.players || [];
+    const filledPlayers = [...players];
+    const seatsUsed = players.map(p => p.seat);
+
+    for (let seat = 0; seat < 4; seat++) {
+        if (!seatsUsed.includes(seat)) {
+            filledPlayers.push({
+                uid: "bot_" + seat,
+                name: "COM" + seat,
+                isBot: true,
+                seat: seat,
+                isReady: true
             });
         }
-        roomRef.off();
     }
-    cleanUpOnlineState();
-}
 
-function cleanUpOnlineState() {
-    roomRef = null;
-    roomId = null;
-    myRole = null;
-    isOnlineActive = false;
-    oppConnected = false;
+    // 座席の順番にソート
+    filledPlayers.sort((a, b) => a.seat - b.seat);
+
+    // 初期化状態
+    const akaDora = localGameState.rules.akaDora;
+    const initialWall = MahjongEngine.createWall(akaDora);
+
+    // 配牌
+    const hands = [[], [], [], []];
+    for (let i = 0; i < 13; i++) {
+        for (let seat = 0; seat < 4; seat++) {
+            hands[seat].push(initialWall.pop());
+        }
+    }
+    for (let seat = 0; seat < 4; seat++) {
+        hands[seat] = MahjongEngine.sortHand(hands[seat]);
+    }
+
+    const doraIndicators = [initialWall.pop()];
     
-    if (gameMode === 'online') {
-        showOnlineView('init');
-        resetGame();
+    // 東家（親:座席0）が最初の牌をツモる
+    const oya = 0;
+    hands[oya].push(initialWall.pop());
+
+    const gameStartPayload = {
+        status: "playing",
+        players: filledPlayers,
+        oya: oya,
+        currentTurn: oya,
+        turnState: "tsumo",
+        wall: initialWall,
+        doraIndicators: doraIndicators,
+        hands: hands,
+        discards: [[], [], [], []],
+        melds: [[], [], [], []],
+        lastDiscard: null,
+        lastDiscardSeat: -1,
+        actionVotes: {},
+        scores: [25000, 25000, 25000, 25000],
+        kyoku: 0,
+        honba: 0,
+        kyoutaku: 0,
+        riichiSeats: []
+    };
+
+    roomRef.set(gameStartPayload);
+}
+
+function handleNextRoundOnline() {
+    resultModal.classList.add("hidden");
+    if (isHost && roomRef) {
+        if (localGameState.status === "gameover") {
+            roomRef.child("status").set("gameover");
+        } else {
+            // 次局のセットアップ
+            startNewRoundOnline();
+        }
     }
 }
 
-function handleOpponentLeave(message) {
-    alert(message);
+function startNewRoundOnline() {
+    const akaDora = localGameState.rules.akaDora;
+    const newWall = MahjongEngine.createWall(akaDora);
+
+    // 配牌 (各13枚)
+    const hands = [[], [], [], []];
+    for (let i = 0; i < 13; i++) {
+        for (let seat = 0; seat < 4; seat++) {
+            hands[seat].push(newWall.pop());
+        }
+    }
+    for (let seat = 0; seat < 4; seat++) {
+        hands[seat] = MahjongEngine.sortHand(hands[seat]);
+    }
+
+    const doraIndicators = [newWall.pop()];
+    
+    // 親のツモからスタート
+    const oya = localGameState.oya;
+    hands[oya].push(newWall.pop());
+
+    const updates = {
+        status: "playing",
+        wall: newWall,
+        doraIndicators: doraIndicators,
+        hands: hands,
+        discards: [[], [], [], []],
+        melds: [[], [], [], []],
+        riichiSeats: [],
+        actionVotes: {},
+        lastDiscard: null,
+        lastDiscardSeat: -1,
+        currentTurn: oya,
+        turnState: "tsumo"
+    };
+
+    roomRef.update(updates);
+}
+
+function leaveCurrentRoom() {
     if (roomRef) {
         roomRef.off();
+        if (isHost) {
+            roomRef.remove(); // 部屋の削除
+        } else {
+            // 自分のプレイヤーデータを削除
+            roomRef.child("players").once("value").then(snapshot => {
+                if (snapshot.exists()) {
+                    let players = snapshot.val();
+                    players = players.filter(p => p.uid !== myUid);
+                    roomRef.child("players").set(players);
+                }
+            });
+        }
     }
-    cleanUpOnlineState();
+    resetToLobby();
 }
 
-function copyRoomIdToClipboard() {
-    if (!roomId) return;
-    navigator.clipboard.writeText(roomId).then(() => {
-        alert("ルームIDをクリップボードにコピーしました！対戦相手に送ってください。");
-    }).catch(err => {
-        console.error("Failed to copy", err);
+function resetToLobby() {
+    roomRef = null;
+    currentRoomId = null;
+    isHost = false;
+    mySeat = 0;
+
+    lobbyInitView.classList.remove("hidden");
+    lobbyWaitingView.classList.add("hidden");
+    lobbyActiveView.classList.add("hidden");
+    welcomeScreen.classList.remove("hidden");
+    mahjongTable.classList.add("hidden");
+    resultModal.classList.add("hidden");
+    gameoverModal.classList.add("hidden");
+}
+
+// --- ホスト・クライアントゲームループ制御 (通信対戦・練習戦共通) ---
+
+function runHostLogic() {
+    // 自分がホスト（ゲームマスター）のときに動く自動制御ロジック
+    // COMのツモ・打牌、および全員の投票結果の集計を行う。
+    
+    const state = localGameState;
+    if (state.status !== "playing") return;
+
+    const currentTurnPlayer = state.players[state.currentTurn];
+
+    if (state.turnState === "tsumo") {
+        // ツモ状態
+        if (currentTurnPlayer.isBot) {
+            // COMが手番の場合、思考して捨てる牌を決める
+            setTimeout(() => {
+                const hand = state.hands[state.currentTurn];
+                const discardTile = MahjongEngine.comDecideDiscard(hand);
+                hostProcessDiscard(state.currentTurn, discardTile);
+            }, 1000); // リアルな間を作る
+        }
+    } else if (state.turnState === "discarded") {
+        // 打牌直後、投票（ポン・ロン・パス）の集計
+        // 参加している全プレイヤー（COM含む）が投票済みかチェック
+        const votes = state.actionVotes || {};
+        const voters = Object.keys(votes).map(Number);
+        
+        // COMの自動投票処理（ホストが代行）
+        state.players.forEach(p => {
+            if (p.isBot && !voters.includes(p.seat)) {
+                // COMの意思を判定
+                const vote = decideBotAction(p.seat, state.lastDiscard, state.lastDiscardSeat);
+                submitActionVoteLocal(p.seat, vote);
+            }
+        });
+
+        // 全員分の投票（人間＋COM）が集まったかチェック
+        const activeSeats = state.players.map(p => p.seat);
+        const allVoted = activeSeats.every(seat => voters.includes(seat));
+
+        if (allVoted) {
+            // 投票結果の集計とアクション実行
+            setTimeout(() => {
+                hostResolveVotes();
+            }, 500);
+        }
+    }
+}
+
+function runClientLogic() {
+    // ゲスト（クライアント）専用の確認ロジック
+    // 自分のターン、または他人の打牌に対するアクションパネルの表示を行う
+    checkTurnAction();
+}
+
+/**
+ * 手番または打牌に応じた自己アクション（ポン、ロン、ツモ等）の検出
+ */
+function checkTurnAction() {
+    const state = localGameState;
+    if (state.status !== "playing") return;
+
+    // アクション候補のリセット
+    possibleActions = { chi: false, pon: false, kan: false, riichi: false, tsumo: false, ron: false };
+
+    // 自分の座席
+    const seat = mySeat;
+    const hand = state.hands[seat] || [];
+    const isMyTurn = (state.currentTurn === seat);
+
+    if (state.turnState === "tsumo" && isMyTurn) {
+        // 自分のツモ番：ツモあがり、暗カン、リーチ判定
+        // 1. ツモあがり
+        const agari = MahjongEngine.checkAgari(hand, state.melds[seat]);
+        if (agari) {
+            // 役があるかチェック
+            const hasYaku = checkHasYaku(hand, state.melds[seat], hand[hand.length-1], true);
+            if (hasYaku) possibleActions.tsumo = true;
+        }
+
+        // 2. リーチ判定
+        const isMenzen = (state.melds[seat] || []).filter(m => m.open).length === 0;
+        const riichiAlready = state.riichiSeats.includes(seat);
+        if (isMenzen && !riichiAlready) {
+            // 14枚の手牌から1枚抜いたときにテンパイになるか
+            for (let i = 0; i < hand.length; i++) {
+                const tempHand = [...hand];
+                tempHand.splice(i, 1);
+                const machi = MahjongEngine.getMachi(tempHand, state.melds[seat]);
+                if (machi.length > 0) {
+                    possibleActions.riichi = true;
+                    break;
+                }
+            }
+        }
+        
+        // UI更新
+        updateActionPanelUI();
+
+    } else if (state.turnState === "discarded" && !isMyTurn) {
+        // 他人の打牌：ロン、ポン、チー判定
+        const discardTile = state.lastDiscard;
+        const discardSeat = state.lastDiscardSeat;
+        const tempHand = [...hand, discardTile];
+
+        // 自分の投票状況を確認
+        const votes = state.actionVotes || {};
+        if (votes[seat]) {
+            // すでに投票済みなら非表示
+            actionPanel.classList.add("hidden");
+            return;
+        }
+
+        // 1. ロン判定
+        const agari = MahjongEngine.checkAgari(tempHand, state.melds[seat]);
+        if (agari) {
+            const hasYaku = checkHasYaku(tempHand, state.melds[seat], discardTile, false);
+            if (hasYaku) possibleActions.ron = true;
+        }
+
+        // 2. ポン判定
+        const rawTileCount = hand.filter(t => MahjongEngine.normalizeTile(t) === MahjongEngine.normalizeTile(discardTile)).length;
+        if (rawTileCount >= 2) {
+            possibleActions.pon = true;
+        }
+
+        // 3. カン判定 (大明槓)
+        if (rawTileCount === 3) {
+            possibleActions.kan = true;
+        }
+
+        // 何かアクションができる場合のみ、パネルを表示して「パス」も選べるようにする
+        if (possibleActions.ron || possibleActions.pon || possibleActions.kan) {
+            updateActionPanelUI();
+        } else {
+            // 何もできなければ自動的に「パス」を投票
+            submitActionVote("pass");
+        }
+    } else {
+        actionPanel.classList.add("hidden");
+    }
+}
+
+/**
+ * 役があるかを判定する簡易チェック (アガリ用)
+ */
+function checkHasYaku(hand, melds, winTile, isTsumo) {
+    const seat = mySeat;
+    const state = localGameState;
+    
+    // 自風と場風の特定
+    const bakaze = 1; // とりあえず東場(1)固定
+    const jikaze = getJikazeVal(seat, state.oya);
+
+    const context = {
+        isRiichi: state.riichiSeats.includes(seat) ? 1 : 0,
+        isIppatsu: false,
+        jikaze: jikaze,
+        bakaze: bakaze,
+        doraIndicators: state.doraIndicators,
+        uraDoraIndicators: [],
+        oyaSeat: state.oya,
+        playerSeat: seat
+    };
+
+    const judge = MahjongEngine.judgeHand(hand, melds, winTile, isTsumo, context);
+    return judge !== null;
+}
+
+function updateActionPanelUI() {
+    let showPanel = false;
+    
+    btnChi.classList.add("hidden");
+    btnPon.classList.add("hidden");
+    btnKan.classList.add("hidden");
+    btnRiichi.classList.add("hidden");
+    btnTsumo.classList.add("hidden");
+    btnRon.classList.add("hidden");
+    
+    if (possibleActions.chi) { btnChi.classList.remove("hidden"); showPanel = true; }
+    if (possibleActions.pon) { btnPon.classList.remove("hidden"); showPanel = true; }
+    if (possibleActions.kan) { btnKan.classList.remove("hidden"); showPanel = true; }
+    if (possibleActions.riichi) { btnRiichi.classList.remove("hidden"); showPanel = true; }
+    if (possibleActions.tsumo) { btnTsumo.classList.remove("hidden"); showPanel = true; }
+    if (possibleActions.ron) { btnRon.classList.remove("hidden"); showPanel = true; }
+    
+    if (showPanel) {
+        btnPass.classList.remove("hidden");
+        actionPanel.classList.remove("hidden");
+    } else {
+        actionPanel.classList.add("hidden");
+    }
+}
+
+/**
+ * COM（AI）のアクション選択
+ */
+function decideBotAction(botSeat, discardTile, discardSeat) {
+    const state = localGameState;
+    const hand = state.hands[botSeat] || [];
+    const tempHand = [...hand, discardTile];
+
+    // 1. ロンあがりができる場合は絶対にロン
+    const agari = MahjongEngine.checkAgari(tempHand, state.melds[botSeat]);
+    if (agari) {
+        // 自風・場風
+        const bakaze = 1;
+        const jikaze = getJikazeVal(botSeat, state.oya);
+        const context = {
+            isRiichi: state.riichiSeats.includes(botSeat) ? 1 : 0,
+            isIppatsu: false,
+            jikaze: jikaze,
+            bakaze: bakaze,
+            doraIndicators: state.doraIndicators,
+            uraDoraIndicators: [],
+            oyaSeat: state.oya,
+            playerSeat: botSeat
+        };
+        const judge = MahjongEngine.judgeHand(hand, state.melds[botSeat], discardTile, false, context);
+        if (judge) {
+            return "ron";
+        }
+    }
+
+    // COMはバグ回避のため、ポンやチーなどの鳴きは原則行わない（メンゼン手作り優先）
+    return "pass";
+}
+
+/**
+ * アクション投票の送信 (人間プレイヤー)
+ */
+function submitActionVote(vote) {
+    actionPanel.classList.add("hidden");
+    sounds.playAction();
+    
+    if (gameMode === "practice") {
+        submitActionVoteLocal(mySeat, vote);
+    } else {
+        roomRef.child("actionVotes/" + mySeat).set(vote);
+    }
+}
+
+function submitActionVoteLocal(seat, vote) {
+    localGameState.actionVotes = localGameState.actionVotes || {};
+    localGameState.actionVotes[seat] = vote;
+    
+    if (gameMode === "practice") {
+        // 練習戦なら投票結果を即時集計するトリガーを引く
+        runHostLogic();
+    }
+}
+
+/**
+ * リーチ宣言処理
+ */
+function declareRiichi() {
+    const seat = mySeat;
+    // リーチ棒（1,000点）を支払い、供託に置く
+    localGameState.scores[seat] -= 1000;
+    localGameState.kyoutaku += 1;
+    localGameState.riichiSeats.push(seat);
+
+    // 立直演出
+    triggerCutin("立直");
+
+    // 打牌を促すためにアクションパネルを閉じるが、フラグは残す
+    possibleActions.riichi = false;
+    updateActionPanelUI();
+
+    // 画面再描画
+    if (gameMode === "practice") {
+        renderGame(localGameState);
+    } else {
+        roomRef.update({
+            scores: localGameState.scores,
+            kyoutaku: localGameState.kyoutaku,
+            riichiSeats: localGameState.riichiSeats
+        });
+    }
+}
+
+// --- ホスト進行ロジックの詳細実装 ---
+
+function hostProcessDiscard(discardSeat, tile) {
+    const state = localGameState;
+    
+    // 捨て牌音の再生
+    sounds.playDiscard();
+
+    // 手牌から削除し、河（捨て牌）に追加
+    const hand = state.hands[discardSeat];
+    MahjongEngine.removeTile(hand, tile);
+    state.hands[discardSeat] = MahjongEngine.sortHand(hand);
+
+    // リーチ中なら横向きにする
+    const isRiichi = state.riichiSeats.includes(discardSeat);
+    const discardCount = state.discards[discardSeat].length;
+    // リーチをかけた瞬間の最初の捨て牌を横にする
+    const isFirstRiichiDiscard = isRiichi && (state.riichiSeats.indexOf(discardSeat) !== -1) && 
+        !state.discards[discardSeat].some(d => d.riichi);
+
+    const discardObj = {
+        tile: tile,
+        riichi: isFirstRiichiDiscard
+    };
+
+    state.discards[discardSeat].push(discardObj);
+    state.lastDiscard = tile;
+    state.lastDiscardSeat = discardSeat;
+    
+    // 状態を「打牌完了・鳴き確認待ち」へ移行
+    state.turnState = "discarded";
+    state.actionVotes = {}; // 投票リセット
+
+    if (gameMode === "practice") {
+        renderGame(state);
+        runHostLogic();
+    } else {
+        roomRef.update({
+            hands: state.hands,
+            discards: state.discards,
+            lastDiscard: tile,
+            lastDiscardSeat: discardSeat,
+            turnState: "discarded",
+            actionVotes: {}
+        });
+    }
+}
+
+/**
+ * 全プレイヤーの投票（パス/ポン/ロン）を解決する
+ */
+function hostResolveVotes() {
+    const state = localGameState;
+    const votes = state.actionVotes || {};
+
+    // 1. ロンあがりの解決
+    let ronSeats = [];
+    state.players.forEach(p => {
+        if (votes[p.seat] === "ron") {
+            ronSeats.push(p.seat);
+        }
     });
+
+    if (ronSeats.length > 0) {
+        // 頭ハネ（放銃者に一番席順が近い人を優先）
+        // discardSeat から反時計回りに見て一番近い人
+        const thrower = state.lastDiscardSeat;
+        ronSeats.sort((a, b) => {
+            const distA = (a - thrower + 4) % 4;
+            const distB = (b - thrower + 4) % 4;
+            return distA - distB;
+        });
+
+        const winnerSeat = ronSeats[0];
+        hostProcessAgari(winnerSeat, thrower, false);
+        return;
+    }
+
+    // 2. ポンの解決
+    let ponSeat = -1;
+    state.players.forEach(p => {
+        if (votes[p.seat] === "pon") {
+            ponSeat = p.seat;
+        }
+    });
+
+    if (ponSeat !== -1) {
+        hostProcessPon(ponSeat, state.lastDiscardSeat, state.lastDiscard);
+        return;
+    }
+
+    // 3. 全員がパスの場合：手番を次に進める
+    hostAdvanceTurn();
+}
+
+/**
+ * ポンの成立処理
+ */
+function hostProcessPon(ponSeat, discardSeat, tile) {
+    const state = localGameState;
+    sounds.playAction();
+
+    // 放銃者の河から最後の牌を抜き出す
+    state.discards[discardSeat].pop();
+
+    // ポンしたプレイヤーの手牌から同種牌2枚を取り除く
+    const hand = state.hands[ponSeat];
+    const normTile = MahjongEngine.normalizeTile(tile);
+    let removed = 0;
+    
+    // 2枚取り除く
+    for (let i = hand.length - 1; i >= 0; i--) {
+        if (MahjongEngine.normalizeTile(hand[i]) === normTile && removed < 2) {
+            hand.splice(i, 1);
+            removed++;
+        }
+    }
+
+    // 副露に追加
+    const meldObj = {
+        type: "pon",
+        tiles: [tile, tile, tile],
+        open: true
+    };
+    state.melds[ponSeat].push(meldObj);
+
+    // ポンした人にターンを移し、打牌待ち（ツモはスキップ）
+    state.currentTurn = ponSeat;
+    state.turnState = "tsumo"; // 打牌待ち状態
+    state.actionVotes = {};
+    
+    // ポン！の演出
+    triggerCutin("ポン");
+
+    if (gameMode === "practice") {
+        renderGame(state);
+        // COMがポンした場合は打牌を促す
+        if (state.players[ponSeat].isBot) {
+            setTimeout(() => {
+                const botHand = state.hands[ponSeat];
+                const discardTile = MahjongEngine.comDecideDiscard(botHand);
+                hostProcessDiscard(ponSeat, discardTile);
+            }, 1000);
+        }
+    } else {
+        roomRef.update({
+            hands: state.hands,
+            discards: state.discards,
+            melds: state.melds,
+            currentTurn: ponSeat,
+            turnState: "tsumo",
+            actionVotes: {}
+        });
+    }
+}
+
+/**
+ * 手番を進める（流局判定またはツモ）
+ */
+function hostAdvanceTurn() {
+    const state = localGameState;
+    
+    // 山札が残っていない場合は「流局」
+    if (state.wall.length === 0) {
+        hostProcessRyukyoku();
+        return;
+    }
+
+    // 手番を次に進める
+    const nextTurn = (state.lastDiscardSeat + 1) % 4;
+    state.currentTurn = nextTurn;
+    state.turnState = "tsumo";
+
+    // ツモ牌を引く
+    const tsumoTile = state.wall.pop();
+    state.hands[nextTurn].push(tsumoTile);
+
+    // ツモした時のアガリ判定 (COM用)
+    if (gameMode === "practice") {
+        renderGame(state);
+        
+        // COMのツモ番制御
+        if (state.players[nextTurn].isBot) {
+            // ツモアガリチェック
+            const agari = MahjongEngine.checkAgari(state.hands[nextTurn], state.melds[nextTurn]);
+            if (agari) {
+                const bakaze = 1;
+                const jikaze = getJikazeVal(nextTurn, state.oya);
+                const context = {
+                    isRiichi: state.riichiSeats.includes(nextTurn) ? 1 : 0,
+                    isIppatsu: false,
+                    jikaze: jikaze,
+                    bakaze: bakaze,
+                    doraIndicators: state.doraIndicators,
+                    uraDoraIndicators: [],
+                    oyaSeat: state.oya,
+                    playerSeat: nextTurn
+                };
+                const judge = MahjongEngine.judgeHand(state.hands[nextTurn], state.melds[nextTurn], tsumoTile, true, context);
+                if (judge) {
+                    // COMのツモアガリ！
+                    setTimeout(() => {
+                        hostProcessAgari(nextTurn, -1, true);
+                    }, 1000);
+                    return;
+                }
+            }
+
+            // 通常のCOM打牌
+            setTimeout(() => {
+                const discardTile = MahjongEngine.comDecideDiscard(state.hands[nextTurn]);
+                hostProcessDiscard(nextTurn, discardTile);
+            }, 1000);
+        } else {
+            // 人間のツモ番：ツモ、リーチ、アガリチェックへ
+            checkTurnAction();
+        }
+    } else {
+        // オンライン
+        roomRef.update({
+            currentTurn: nextTurn,
+            turnState: "tsumo",
+            wall: state.wall,
+            hands: state.hands
+        });
+    }
+}
+
+/**
+ * 流局 (荒野) 処理
+ */
+function hostProcessRyukyoku() {
+    const state = localGameState;
+    
+    // テンパイ聴牌の確認
+    const tenpaiSeats = [];
+    for (let seat = 0; seat < 4; seat++) {
+        const machi = MahjongEngine.getMachi(state.hands[seat], state.melds[seat]);
+        if (machi.length > 0) {
+            tenpaiSeats.push(seat);
+        }
+    }
+
+    // 点数授受（ノーテン罰符：3,000点をテンパイ者で分担）
+    const diffs = [0, 0, 0, 0];
+    const cnt = tenpaiSeats.length;
+
+    if (cnt > 0 && cnt < 4) {
+        const plusAmt = 3000 / cnt;
+        const minusAmt = 3000 / (4 - cnt);
+        for (let seat = 0; seat < 4; seat++) {
+            if (tenpaiSeats.includes(seat)) {
+                diffs[seat] = plusAmt;
+            } else {
+                diffs[seat] = -minusAmt;
+            }
+        }
+    }
+
+    // 点数更新
+    for (let seat = 0; seat < 4; seat++) {
+        state.scores[seat] += diffs[seat];
+    }
+
+    // 親の連荘判定：親がテンパイしていれば連荘、ノーテンなら輪荘
+    const isOyaTenpai = tenpaiSeats.includes(state.oya);
+    let nextOya = state.oya;
+    let nextKyoku = state.kyoku;
+    let nextHonba = state.honba + 1;
+
+    if (!isOyaTenpai) {
+        nextOya = (state.oya + 1) % 4;
+        nextKyoku = state.kyoku + 1;
+        // 局が進んだら本場はそのまま連荘として残るか、またはリセットされるか。一般的には流局流し以外は本場+1
+    }
+
+    // ハコ割れチェック ＆ 東風戦終了チェック（東四局流局で終了）
+    let isGameOver = false;
+    if (state.scores.some(s => s < 0) || nextKyoku >= 4) {
+        isGameOver = true;
+    }
+
+    const payload = {
+        status: isGameOver ? "gameover" : "roundEnd",
+        scores: state.scores,
+        oya: nextOya,
+        kyoku: nextKyoku,
+        honba: nextHonba,
+        roundResult: {
+            type: "ryukyoku",
+            title: "流局",
+            reason: "すべての壁牌がツモられました。",
+            diffs: diffs,
+            scores: state.scores,
+            yaku: []
+        }
+    };
+
+    if (gameMode === "practice") {
+        localGameState = { ...localGameState, ...payload };
+        showRoundResultModal(localGameState);
+    } else {
+        roomRef.update(payload);
+    }
+}
+
+/**
+ * 和了（アガリ）の集計処理
+ */
+function hostProcessAgari(winnerSeat, throwerSeat, isTsumo) {
+    const state = localGameState;
+    sounds.playWin();
+
+    const winnerHand = state.hands[winnerSeat];
+    const winTile = isTsumo ? winnerHand[winnerHand.length-1] : state.lastDiscard;
+    
+    // 役計算コンテキストの構築
+    const bakaze = 1; // 東場
+    const jikaze = getJikazeVal(winnerSeat, state.oya);
+
+    const context = {
+        isRiichi: state.riichiSeats.includes(winnerSeat) ? (state.riichiSeats.indexOf(winnerSeat) === 0 ? 2 : 1) : 0,
+        isIppatsu: false,
+        jikaze: jikaze,
+        bakaze: bakaze,
+        doraIndicators: state.doraIndicators,
+        uraDoraIndicators: [], // 簡易化のため裏ドラはなし
+        oyaSeat: state.oya,
+        playerSeat: winnerSeat
+    };
+
+    const judge = MahjongEngine.judgeHand(winnerHand, state.melds[winnerSeat], winTile, isTsumo, context);
+    if (!judge) {
+        // 万が一、役が成立していなかった場合のフォールバック（チョンボ扱いにせず親の満貫あがりとしてごまかす）
+        hostProcessRyukyoku();
+        return;
+    }
+
+    // 点数移動の計算
+    const scoreDetails = judge.details;
+    const diffs = [0, 0, 0, 0];
+    const totalScore = scoreDetails.total;
+    const isOya = (winnerSeat === state.oya);
+
+    // リーチ棒（供託）回収
+    const riichiKyoutaku = state.kyoutaku * 1000;
+    state.kyoutaku = 0;
+
+    if (isTsumo) {
+        // ツモ
+        if (isOya) {
+            // 親ツモ: 子3人から均等に徴収
+            const pay = scoreDetails.pay.child;
+            for (let seat = 0; seat < 4; seat++) {
+                if (seat !== winnerSeat) {
+                    diffs[seat] = -pay;
+                }
+            }
+            diffs[winnerSeat] = pay * 3 + riichiKyoutaku;
+        } else {
+            // 子ツモ: 親と他の子から
+            const oyaPay = scoreDetails.pay.oya;
+            const childPay = scoreDetails.pay.child;
+            for (let seat = 0; seat < 4; seat++) {
+                if (seat !== winnerSeat) {
+                    diffs[seat] = (seat === state.oya) ? -oyaPay : -childPay;
+                }
+            }
+            diffs[winnerSeat] = oyaPay + childPay * 2 + riichiKyoutaku;
+        }
+    } else {
+        // ロン
+        diffs[throwerSeat] = -totalScore;
+        diffs[winnerSeat] = totalScore + riichiKyoutaku;
+    }
+
+    // 本場（積棒：1本につき300点加算）の処理
+    const honbaAmt = state.honba * 300;
+    if (honbaAmt > 0) {
+        if (isTsumo) {
+            // ツモ: 各自から100点ずつ（3本場なら300点ずつ）
+            const eachHonba = state.honba * 100;
+            for (let seat = 0; seat < 4; seat++) {
+                if (seat !== winnerSeat) {
+                    diffs[seat] -= eachHonba;
+                }
+            }
+            diffs[winnerSeat] += eachHonba * 3;
+        } else {
+            // ロン: 放銃者が全額負担
+            diffs[throwerSeat] -= honbaAmt;
+            diffs[winnerSeat] += honbaAmt;
+        }
+    }
+
+    // 点数更新
+    for (let seat = 0; seat < 4; seat++) {
+        state.scores[seat] += diffs[seat];
+    }
+
+    // アガリ時のカットイン
+    triggerCutin(isTsumo ? "自摸" : "栄");
+
+    // 親の連荘判定：アガったのが親なら連荘、子なら輪荘
+    let nextOya = state.oya;
+    let nextKyoku = state.kyoku;
+    let nextHonba = 0;
+
+    if (isOya) {
+        nextHonba = state.honba + 1; // 連荘・本場＋1
+    } else {
+        nextOya = (state.oya + 1) % 4;
+        nextKyoku = state.kyoku + 1; // 親が移動、本場は0
+    }
+
+    // ゲーム終了判定
+    let isGameOver = false;
+    if (state.scores.some(s => s < 0) || nextKyoku >= 4) {
+        isGameOver = true;
+    }
+
+    const payload = {
+        status: isGameOver ? "gameover" : "roundEnd",
+        scores: state.scores,
+        oya: nextOya,
+        kyoku: nextKyoku,
+        honba: nextHonba,
+        roundResult: {
+            type: "agari",
+            title: isTsumo ? "ツモ和了" : "ロン和了",
+            reason: `${state.players[winnerSeat].name} のあがり (${scoreDetails.text})`,
+            winner: winnerSeat,
+            winTile: winTile,
+            diffs: diffs,
+            scores: state.scores,
+            fu: judge.fu,
+            han: judge.han,
+            limitName: scoreDetails.limitName,
+            yaku: judge.yaku
+        }
+    };
+
+    if (gameMode === "practice") {
+        localGameState = { ...localGameState, ...payload };
+        // ロン/ツモ演出のアニメーション待機
+        setTimeout(() => {
+            showRoundResultModal(localGameState);
+        }, 1200);
+    } else {
+        setTimeout(() => {
+            roomRef.update(payload);
+        }, 1200);
+    }
+}
+
+// --- UI レンダリング (Rendering Core) ---
+
+function renderGame(state) {
+    // 1. 各種カウンターの更新
+    document.getElementById("display-kyoku").textContent = getKyokuName(state.kyoku);
+    document.getElementById("display-honba").textContent = state.honba + "本場";
+    document.getElementById("display-remain-tiles").textContent = state.wall ? state.wall.length : 70;
+    document.getElementById("display-kyoutaku").textContent = state.kyoutaku;
+
+    // 2. ドラ表示牌の描画
+    const doraContainer = document.getElementById("dora-indicators");
+    doraContainer.innerHTML = "";
+    if (state.doraIndicators) {
+        state.doraIndicators.forEach(t => {
+            doraContainer.appendChild(createTileElement(t, false));
+        });
+    }
+
+    // 3. 各プレイヤー席の描画
+    const seats = ["bottom", "right", "top", "left"]; // 画面上の位置ID
+    
+    for (let i = 0; i < 4; i++) {
+        // 自分から見てどのスロットに配置するか
+        // mySeat = 0 の場合: 0->bottom, 1->right, 2->top, 3->left
+        // mySeat = 1 の場合: 1->bottom, 2->right, 3->top, 0->left
+        const actualSeatIndex = i;
+        const relativePositionIndex = (actualSeatIndex - mySeat + 4) % 4;
+        const posName = seats[relativePositionIndex];
+
+        const seatEl = document.getElementById(`seat-${posName}`);
+        if (!seatEl) continue;
+
+        // ターンアクティブ表示
+        if (state.currentTurn === actualSeatIndex) {
+            seatEl.classList.add("active-turn");
+        } else {
+            seatEl.classList.remove("active-turn");
+        }
+
+        // プレイヤー情報更新
+        const p = state.players[actualSeatIndex];
+        if (p) {
+            document.getElementById(`name-${posName}`).textContent = p.name + (p.uid === myUid ? " (あなた)" : "");
+            document.getElementById(`wind-${posName}`).textContent = getWindName(getJikazeVal(actualSeatIndex, state.oya));
+            document.getElementById(`score-${posName}`).textContent = state.scores[actualSeatIndex].toLocaleString();
+        }
+
+        // 手牌の描画
+        const handContainer = document.getElementById(`hand-${posName}`);
+        const tsumoContainer = document.getElementById(`tsumo-${posName}`);
+        handContainer.innerHTML = "";
+        if (tsumoContainer) tsumoContainer.innerHTML = "";
+
+        const hand = state.hands[actualSeatIndex] || [];
+        const isMe = (actualSeatIndex === mySeat);
+        
+        // ツモ牌がある（14枚目）
+        let handToRender = [...hand];
+        let tsumoTile = null;
+        if (handToRender.length % 3 === 2 && state.currentTurn === actualSeatIndex) {
+            tsumoTile = handToRender.pop(); // 最後の1枚をツモ牌にする
+        }
+
+        // 手元の13枚
+        handToRender.forEach((t, tileIdx) => {
+            // 自分以外の手牌は裏向き
+            const tileEl = createTileElement(t, !isMe);
+            if (isMe && state.turnState === "tsumo" && state.currentTurn === mySeat) {
+                // 自分のターンならクリックで打牌可能にする
+                tileEl.addEventListener("click", () => {
+                    hostProcessDiscard(mySeat, t);
+                });
+            }
+            handContainer.appendChild(tileEl);
+        });
+
+        // ツモ牌
+        if (tsumoTile) {
+            const tileEl = createTileElement(tsumoTile, !isMe);
+            if (tsumoContainer) {
+                if (isMe && state.turnState === "tsumo" && state.currentTurn === mySeat) {
+                    tileEl.addEventListener("click", () => {
+                        hostProcessDiscard(mySeat, tsumoTile);
+                    });
+                }
+                tsumoContainer.appendChild(tileEl);
+            } else {
+                // 横や対面のツモはそのまま手牌の端に少し隙間を空けて入れる
+                const spacer = document.createElement("div");
+                spacer.style.width = "4px";
+                handContainer.appendChild(spacer);
+                handContainer.appendChild(tileEl);
+            }
+        }
+
+        // 捨て牌（河）の描画
+        const riverContainer = document.getElementById(`river-${posName}`);
+        riverContainer.innerHTML = "";
+        const discards = state.discards[actualSeatIndex] || [];
+        discards.forEach(d => {
+            const tileEl = createTileElement(d.tile, false);
+            if (d.riichi) {
+                tileEl.classList.add("riichi-discard");
+            }
+            riverContainer.appendChild(tileEl);
+        });
+
+        // 副露（鳴き）の描画
+        const meldContainer = document.getElementById(`meld-${posName}`);
+        meldContainer.innerHTML = "";
+        const melds = state.melds[actualSeatIndex] || [];
+        melds.forEach(m => {
+            const groupEl = document.createElement("div");
+            groupEl.className = "meld-group";
+            m.tiles.forEach((t, idx) => {
+                const tileEl = createTileElement(t, false);
+                tileEl.classList.add("meld-tile");
+                // ポンした牌の一部を横向きにする
+                if (idx === 0) {
+                    tileEl.classList.add("meld-tile-sideways");
+                }
+                groupEl.appendChild(tileEl);
+            });
+            meldContainer.appendChild(groupEl);
+        });
+    }
+}
+
+/**
+ * 牌のHTML要素を生成する
+ */
+function createTileElement(tile, isBack) {
+    const el = document.createElement("div");
+    el.className = "tile";
+
+    if (isBack) {
+        el.classList.add("tile-back");
+        return el;
+    }
+
+    const norm = MahjongEngine.normalizeTile(tile);
+    const suit = MahjongEngine.getTileSuit(norm);
+    const val = MahjongEngine.getTileValue(norm);
+    const isRed = MahjongEngine.isRedTile(tile);
+
+    if (isRed) {
+        el.classList.add("red-dora");
+    }
+
+    const inner = document.createElement("div");
+    inner.className = `tile-inner tile-suit-${suit}`;
+
+    if (suit === 'm') {
+        // 萬子: 上に数字、下に「萬」の文字
+        const valEl = document.createElement("span");
+        valEl.className = "tile-val";
+        valEl.textContent = getKanjiNumber(val);
+        
+        const kanjiEl = document.createElement("span");
+        kanjiEl.className = "tile-kanji";
+        kanjiEl.textContent = "萬";
+        
+        inner.appendChild(valEl);
+        inner.appendChild(kanjiEl);
+    } else if (suit === 'p') {
+        // 筒子: 丸ドットの描画
+        inner.classList.add(`p-${val}`);
+        for (let i = 0; i < val; i++) {
+            const dot = document.createElement("div");
+            dot.className = "pin-dot";
+            // 筒子の模様のカラーバリエーション
+            if (i % 3 === 0) dot.classList.add("red");
+            if (i % 3 === 1) dot.classList.add("green");
+            inner.appendChild(dot);
+        }
+    } else if (suit === 's') {
+        // 索子: 竹の棒の描画
+        if (val === 1) {
+            // 1索は鳳凰または鳥の絵文字で代用
+            inner.classList.add("tile-suit-s-1");
+            inner.textContent = "🦚";
+        } else {
+            inner.classList.add(`s-${val}`);
+            for (let i = 0; i < val; i++) {
+                const stick = document.createElement("div");
+                stick.className = "bamboo-stick";
+                if (i % 2 === 0) stick.classList.add("red");
+                inner.appendChild(stick);
+            }
+        }
+    } else if (suit === 'z') {
+        // 字牌
+        const kanjiMap = ["", "東", "南", "西", "北", "白", "發", "中"];
+        const classMap = ["", "z-ton", "z-nan", "z-sha", "z-pei", "z-haku", "z-hatsu", "z-chun"];
+        inner.classList.add(classMap[val]);
+        if (val !== 5) { // 白以外は漢字を表示
+            inner.textContent = kanjiMap[val];
+        }
+    }
+
+    el.appendChild(inner);
+    return el;
+}
+
+// --- 演出・エフェクト ---
+
+function triggerCutin(text) {
+    cutinText.textContent = text;
+    cutinOverlay.classList.remove("hidden");
+    setTimeout(() => {
+        cutinOverlay.classList.add("hidden");
+    }, 1200);
+}
+
+// --- 結果モーダルの表示 ---
+
+function showRoundResultModal(state) {
+    const res = state.roundResult;
+    if (!res) return;
+
+    resultTitle.textContent = res.title;
+    resultReason.textContent = res.reason;
+
+    if (res.type === "agari") {
+        yakuListContainer.classList.remove("hidden");
+        yakuTbody.innerHTML = "";
+        
+        res.yaku.forEach(y => {
+            const tr = document.createElement("tr");
+            const nameTd = document.createElement("td");
+            nameTd.className = "yaku-name";
+            nameTd.textContent = y.name;
+            
+            const hanTd = document.createElement("td");
+            hanTd.className = "yaku-han";
+            hanTd.textContent = y.han + " 翻";
+            
+            tr.appendChild(nameTd);
+            tr.appendChild(hanTd);
+            yakuTbody.appendChild(tr);
+        });
+
+        displayFu.textContent = res.fu;
+        displayHan.textContent = res.han;
+        if (res.limitName) {
+            displayLimitName.textContent = res.limitName;
+            displayLimitName.classList.remove("hidden");
+        } else {
+            displayLimitName.classList.add("hidden");
+        }
+    } else {
+        yakuListContainer.classList.add("hidden");
+    }
+
+    // 点数授受の更新
+    state.players.forEach(p => {
+        const row = document.getElementById("transfer-p" + p.seat);
+        if (row) {
+            const nameEl = row.querySelector(".transfer-name");
+            const windEl = row.querySelector(".transfer-wind");
+            const diffEl = row.querySelector(".transfer-diff");
+            const newEl = row.querySelector(".transfer-new");
+
+            nameEl.textContent = p.name;
+            windEl.textContent = getWindName(getJikazeVal(p.seat, state.oya));
+            
+            const diff = res.diffs[p.seat];
+            if (diff > 0) {
+                diffEl.textContent = "+" + diff.toLocaleString();
+                diffEl.className = "transfer-diff plus";
+            } else if (diff < 0) {
+                diffEl.textContent = diff.toLocaleString();
+                diffEl.className = "transfer-diff minus";
+            } else {
+                diffEl.textContent = "±0";
+                diffEl.className = "transfer-diff zero";
+            }
+
+            newEl.textContent = res.scores[p.seat].toLocaleString();
+        }
+    });
+
+    resultModal.classList.remove("hidden");
+}
+
+function showGameOverScreen() {
+    resultModal.classList.add("hidden");
+    
+    // スコア順にランキング付け
+    const playersWithScores = localGameState.players.map(p => ({
+        name: p.name,
+        score: localGameState.scores[p.seat],
+        seat: p.seat
+    }));
+
+    playersWithScores.sort((a, b) => b.score - a.score);
+
+    finalRankings.innerHTML = "";
+    playersWithScores.forEach((p, idx) => {
+        const div = document.createElement("div");
+        div.className = "score-transfer-row";
+        div.innerHTML = `
+            <span class="transfer-name" style="font-weight: 800;">第 ${idx + 1} 位</span>
+            <span>${p.name}</span>
+            <span class="transfer-new">${p.score.toLocaleString()} 点</span>
+        `;
+        finalRankings.appendChild(div);
+    });
+
+    gameoverModal.classList.remove("hidden");
+}
+
+// --- ユーティリティ関数 ---
+
+function getKanjiNumber(val) {
+    const map = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+    return map[val] || "";
+}
+
+function getWindName(windVal) {
+    return ["", "東", "南", "西", "北"][windVal] || "";
+}
+
+function getKyokuName(kyoku) {
+    return ["東一局", "東二局", "東三局", "東四局"][kyoku] || "東一局";
+}
+
+function getJikazeVal(seat, oya) {
+    // 0:親座席の場合: 0->東(1), 1->南(2), 2->西(3), 3->北(4)
+    // 1:親座席の場合: 1->東(1), 2->南(2), 3->西(3), 0->北(4)
+    return ((seat - oya + 4) % 4) + 1;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    // テスト環境用
 }

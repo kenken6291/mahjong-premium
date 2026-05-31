@@ -1,6 +1,6 @@
 # Firebase Realtime Database セットアップ手順
 
-Reversi Premiumでオンライン対戦機能を利用するには、無料のGoogle Firebaseアカウントを作成し、データベースを設定する必要があります。
+Mahjong Premiumでオンライン対戦機能を利用するには、無料のGoogle Firebaseアカウントを作成し、データベースを設定する必要があります。
 以下の手順に沿って設定を行ってください。
 
 ---
@@ -9,7 +9,7 @@ Reversi Premiumでオンライン対戦機能を利用するには、無料のGo
 
 1. [Firebase Console](https://console.firebase.google.com/) にアクセスし、Googleアカウントでログインします。
 2. 「**プロジェクトを追加**」（または「プロジェクトを作成」）をクリックします。
-3. プロジェクト名（例: `reversi-premium`）を入力し、規約に同意して「続行」を押します。
+3. プロジェクト名（例: `mahjong-premium` または `reversi-premium`）を入力し、規約に同意して「続行」を押します。
 4. Google アナリティクスの設定画面が表示されますが、このアプリでは不要なため「**このプロジェクトで Google アナリティクスを無効にする**」にチェックするか、無効化して「**プロジェクトを作成**」をクリックします。
 5. 作成完了画面が表示されたら「続行」をクリックします。
 
@@ -17,7 +17,7 @@ Reversi Premiumでオンライン対戦機能を利用するには、無料のGo
 
 ## 🛠️ ステップ2: Realtime Database の作成とルール設定
 
-オンライン対戦でリアルタイムに石の配置データを同期するためのデータベースを作成します。
+オンライン対戦でリアルタイムに手牌や捨て牌のデータを同期するためのデータベースを作成します。
 
 1. Firebaseコンソールの左側メニューから「**構築**」をクリックし、「**Realtime Database**」を選択します。
 2. 「**データベースを作成**」をクリックします。
@@ -43,7 +43,7 @@ Reversi Premiumでオンライン対戦機能を利用するには、無料のGo
 
 1. Firebaseコンソールの左メニュー上部にある「**プロジェクトの概要**」の横の「歯車マーク」をクリックし、「**プロジェクトの設定**」を選択します。
 2. 下部にある「マイアプリ」セクションで、**ウェブ（ `</>` アイコン）** をクリックします。
-3. アプリのニックネーム（例: `reversi-web`）を入力します。※「このアプリの Firebase Hosting も設定します」は**チェック不要**です。
+3. アプリのニックネーム（例: `mahjong-web`）を入力します。※「このアプリの Firebase Hosting も設定します」は**チェック不要**です。
 4. 「**アプリを登録**」をクリックします。
 5. 画面に設定用のコード（SDKの追加）が表示されます。その中にある `firebaseConfig` オブジェクトをコピーします。
 
@@ -51,10 +51,10 @@ Reversi Premiumでオンライン対戦機能を利用するには、無料のGo
 // コピーする対象の例：
 const firebaseConfig = {
   apiKey: "AIzaSy...",
-  authDomain: "reversi-premium.firebaseapp.com",
-  databaseURL: "https://reversi-premium-default-rtdb.firebaseio.com",
-  projectId: "reversi-premium",
-  storageBucket: "reversi-premium.appspot.com",
+  authDomain: "mahjong-premium.firebaseapp.com",
+  databaseURL: "https://mahjong-premium-default-rtdb.firebaseio.com",
+  projectId: "mahjong-premium",
+  storageBucket: "mahjong-premium.appspot.com",
   messagingSenderId: "...",
   appId: "..."
 };
@@ -76,3 +76,4 @@ const firebaseConfig = {
 
 3. コピーした接続情報をここに貼り付けて保存します。
 4. ファイルを保存し、再び Git にコミットして GitHub にプッシュすれば、オンライン対戦がすぐに使えるようになります！
+5. 設定していない場合は、自動的にオフラインの「練習戦 (VS COM)」モードのみが起動します。
