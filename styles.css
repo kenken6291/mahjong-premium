@@ -1595,3 +1595,14 @@ body.theme-neon .tile.tile-back {
         min-height: 400px;
     }
 }
+
+/* 左右の捨て牌と情報カードが中央ダッシュボードと重なるのを防ぐための調整 */
+.seat-left .river-container,
+.seat-left .player-info-card {
+    transform: translateY(40px);
+}
+
+.seat-right .river-container,
+.seat-right .player-info-card {
+    transform: translateY(40px);
+}
