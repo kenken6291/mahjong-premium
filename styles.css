@@ -949,7 +949,6 @@ body.theme-neon .tile.tile-back {
 .tile-inner.tile-suit-p {
     width: 85% !important;
     height: 85% !important;
-    display: block !important;
     position: relative;
 }
 .pin-dot {
@@ -1103,7 +1102,6 @@ body.theme-neon .tile.tile-back {
 .tile-suit-s {
     width: 85% !important;
     height: 85% !important;
-    display: block !important;
 }
 .bamboo-stick {
     width: 5px;

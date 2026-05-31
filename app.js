@@ -1707,6 +1707,9 @@ function hostProcessAgari(winnerSeat, throwerSeat, isTsumo) {
     const winnerHand = state.hands[winnerSeat];
     const winTile = isTsumo ? winnerHand[winnerHand.length-1] : state.lastDiscard;
     
+    // ロンあがりの場合は判定用にアガリ牌を一時的に含めた14枚の配列を生成
+    const judgeHandArray = isTsumo ? winnerHand : [...winnerHand, winTile];
+
     // 役計算コンテキストの構築
     const bakaze = 1; // 東場
     const jikaze = getJikazeVal(winnerSeat, state.oya);
@@ -1722,11 +1725,17 @@ function hostProcessAgari(winnerSeat, throwerSeat, isTsumo) {
         playerSeat: winnerSeat
     };
 
-    const judge = MahjongEngine.judgeHand(winnerHand, state.melds[winnerSeat], winTile, isTsumo, context);
+    const judge = MahjongEngine.judgeHand(judgeHandArray, state.melds[winnerSeat], winTile, isTsumo, context);
     if (!judge) {
         // 万が一、役が成立していなかった場合のフォールバック（チョンボ扱いにせず親の満貫あがりとしてごまかす）
         hostProcessRyukyoku();
         return;
+    }
+
+    // ロンあがりの場合は手牌公開用にロン牌を手牌に正式追加してソート
+    if (!isTsumo) {
+        winnerHand.push(winTile);
+        state.hands[winnerSeat] = MahjongEngine.sortHand(winnerHand);
     }
 
     // 点数移動の計算
