@@ -113,9 +113,8 @@ class SoundManager {
         gain.connect(ctx.destination);
         
         osc1.start();
-        osc2.start();
-        osc1.stop(ctx.currentTime + 0.07);
         osc2.start(ctx.currentTime + 0.07);
+        osc1.stop(ctx.currentTime + 0.07);
         osc2.stop(ctx.currentTime + 0.18);
     }
 
@@ -880,7 +879,8 @@ function runHostLogic() {
     const state = localGameState;
     if (state.status !== "playing") return;
 
-    const currentTurnPlayer = state.players[state.currentTurn];
+    const currentTurnPlayer = state.players.find(p => p.seat === state.currentTurn);
+    if (!currentTurnPlayer) return;
 
     if (state.turnState === "tsumo") {
         // ツモ状態
@@ -1903,7 +1903,7 @@ function renderGame(state) {
         }
 
         // プレイヤー情報更新
-        const p = state.players[actualSeatIndex];
+        const p = state.players.find(pl => pl.seat === actualSeatIndex);
         if (p) {
             document.getElementById(`name-${posName}`).textContent = p.name + (p.uid === myUid ? " (あなた)" : "");
             document.getElementById(`wind-${posName}`).textContent = getWindName(getJikazeVal(actualSeatIndex, state.oya));
