@@ -5,13 +5,12 @@
 // --- Firebase Config (ユーザー設定エリア) ---
 // ※ユーザーが独自のFirebaseを利用する場合はここを書き換えます
 const firebaseConfig = {
-  apiKey: "AIzaSyBS64JBBi64ei57PVDR4nLi-fEndQFbpmM",
-  authDomain: "shogi-premium.firebaseapp.com",
-  databaseURL: "https://shogi-premium-default-rtdb.firebaseio.com",
-  projectId: "shogi-premium",
-  storageBucket: "shogi-premium.firebasestorage.app",
-  messagingSenderId: "260685844",
-  appId: "1:260685844:web:3020c343950faa8027a701"
+  apiKey: "AIzaSyC9d7pHVDOq6RMjSRvPxC8AY7iWej7z63I",
+  authDomain: "gunjin-shogi-premium.firebaseapp.com",
+  projectId: "gunjin-shogi-premium",
+  storageBucket: "gunjin-shogi-premium.firebasestorage.app",
+  messagingSenderId: "931207923248",
+  appId: "1:931207923248:web:2520d6228936b2de3f0ff5"
 };
 
 // --- Game Constants ---
