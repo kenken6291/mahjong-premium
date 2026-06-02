@@ -153,6 +153,7 @@ let mySeat = 0; // 0:東/南/西/北 (自分が着席した席)
 let currentRoomId = null;
 let isHost = false;
 let gameMode = "online"; // 'online' or 'practice'
+let selectedTileIdx = -1; // 選択中の手牌インデックス（2段階打牌用）
 
 // Firebase用データベース参照
 let roomRef = null;
@@ -254,6 +255,10 @@ window.addEventListener("DOMContentLoaded", () => {
         gameModeSelect.disabled = true;
     }
 
+    // 初回ロード時およびリサイズ時に麻雀卓のスケールを調整
+    adjustTableScale();
+    window.addEventListener("resize", adjustTableScale);
+
     // 初回のユーザーインタラクション時にAudioContextをアクティベートする
     const unlockAudio = () => {
         sounds.init();
@@ -281,8 +286,33 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 function setupUIHandlers() {
+    // ドロワーメニューの制御
+    const togglePanelBtn = document.getElementById("btn-toggle-panel");
+    const drawerOverlay = document.getElementById("drawer-overlay");
+    const controlPanel = document.querySelector(".control-panel");
+    
+    function toggleDrawer() {
+        controlPanel.classList.toggle("active");
+        drawerOverlay.classList.toggle("hidden");
+    }
+    
+    function closeDrawer() {
+        controlPanel.classList.remove("active");
+        drawerOverlay.classList.add("hidden");
+    }
+    
+    if (togglePanelBtn) {
+        togglePanelBtn.addEventListener("click", toggleDrawer);
+    }
+    if (drawerOverlay) {
+        drawerOverlay.addEventListener("click", closeDrawer);
+    }
+
     // テーマ切り替え
-    themeSelect.addEventListener("change", (e) => updateTheme(e.target.value));
+    themeSelect.addEventListener("change", (e) => {
+        updateTheme(e.target.value);
+        closeDrawer();
+    });
 
     // ゲームモード切り替え
     gameModeSelect.addEventListener("change", (e) => {
@@ -297,6 +327,7 @@ function setupUIHandlers() {
             practiceStartBtn.classList.add("hidden");
             ruleComCountSelect.disabled = false;
         }
+        closeDrawer();
     });
     gameModeSelect.dispatchEvent(new Event("change"));
 
@@ -325,6 +356,7 @@ function setupUIHandlers() {
     practiceStartBtn.addEventListener("click", () => {
         sounds.init();
         startPracticeGame();
+        closeDrawer();
     });
 
     // オンラインルーム作成
@@ -332,6 +364,7 @@ function setupUIHandlers() {
         if (!isFirebaseEnabled) return;
         const roomId = Math.floor(100000 + Math.random() * 900000).toString();
         createOnlineRoom(roomId);
+        closeDrawer();
     });
 
     // オンラインルーム入室
@@ -340,6 +373,7 @@ function setupUIHandlers() {
         const roomId = inputRoomId.value.trim();
         if (roomId.length === 6) {
             joinOnlineRoom(roomId);
+            closeDrawer();
         } else {
             alert("6桁のルームIDを入力してください。");
         }
@@ -353,13 +387,20 @@ function setupUIHandlers() {
     });
 
     // 退出・解散
-    cancelRoomBtn.addEventListener("click", () => leaveCurrentRoom());
-    leaveRoomBtn.addEventListener("click", () => leaveCurrentRoom());
+    cancelRoomBtn.addEventListener("click", () => {
+        leaveCurrentRoom();
+        closeDrawer();
+    });
+    leaveRoomBtn.addEventListener("click", () => {
+        leaveCurrentRoom();
+        closeDrawer();
+    });
 
     // ホストによるゲーム開始
     startGameBtn.addEventListener("click", () => {
         if (isHost && roomRef) {
             setupBotsAndStartOnlineGame();
+            closeDrawer();
         }
     });
 
@@ -1922,6 +1963,11 @@ function hostProcessAgari(winnerSeat, throwerSeat, isTsumo) {
 // --- UI レンダリング (Rendering Core) ---
 
 function renderGame(state) {
+    // 自分のターンでない、または打牌待ちでない場合は選択状態をリセット
+    if (state.currentTurn !== mySeat || state.turnState !== "tsumo") {
+        selectedTileIdx = -1;
+    }
+
     // 1. 各種カウンターの更新
     document.getElementById("display-kyoku").textContent = getKyokuName(state.kyoku);
     document.getElementById("display-honba").textContent = state.honba + "本場";
@@ -1986,10 +2032,22 @@ function renderGame(state) {
         const isRiichi = state.riichiSeats.includes(actualSeatIndex);
         handToRender.forEach((t, tileIdx) => {
             const tileEl = createTileElement(t, !isMe);
+            
+            // 選択状態ならスタイルクラスを適用
+            if (isMe && selectedTileIdx === tileIdx) {
+                tileEl.classList.add("tile-selected");
+            }
+
             if (isMe && state.turnState === "tsumo" && state.currentTurn === mySeat) {
                 if (!isRiichi) {
                     tileEl.addEventListener("click", () => {
-                        hostProcessDiscard(mySeat, t);
+                        if (selectedTileIdx === tileIdx) {
+                            selectedTileIdx = -1;
+                            hostProcessDiscard(mySeat, t);
+                        } else {
+                            selectedTileIdx = tileIdx;
+                            renderGame(state); // 再描画して選択を反映
+                        }
                     });
                 } else {
                     tileEl.classList.add("tile-disabled");
@@ -2001,15 +2059,30 @@ function renderGame(state) {
         // ツモ牌
         if (tsumoTile) {
             const tileEl = createTileElement(tsumoTile, !isMe);
+            const tsumoIdx = 99; // ツモ牌用の特殊インデックス
+
+            if (isMe && selectedTileIdx === tsumoIdx) {
+                tileEl.classList.add("tile-selected");
+            }
+
             if (tsumoContainer) {
                 if (isMe && state.turnState === "tsumo" && state.currentTurn === mySeat) {
                     tileEl.addEventListener("click", () => {
-                        hostProcessDiscard(mySeat, tsumoTile);
+                        if (selectedTileIdx === tsumoIdx) {
+                            selectedTileIdx = -1;
+                            hostProcessDiscard(mySeat, tsumoTile);
+                        } else {
+                            selectedTileIdx = tsumoIdx;
+                            renderGame(state);
+                        }
                     });
                 }
                 tsumoContainer.appendChild(tileEl);
             } else {
                 // 横や対面のツモはそのまま手牌の端に少し隙間を空けて入れる
+                if (isMe && selectedTileIdx === tsumoIdx) {
+                    tileEl.classList.add("tile-selected");
+                }
                 const spacer = document.createElement("div");
                 spacer.style.width = "4px";
                 handContainer.appendChild(spacer);
@@ -2050,6 +2123,9 @@ function renderGame(state) {
             meldContainer.appendChild(groupEl);
         });
     }
+
+    // 画面サイズに応じて麻雀卓を自動スケーリング
+    adjustTableScale();
 }
 
 /**
@@ -2278,6 +2354,40 @@ function getJikazeVal(seat, oya) {
     // 0:親座席の場合: 0->東(1), 1->南(2), 2->西(3), 3->北(4)
     // 1:親座席の場合: 1->東(1), 2->南(2), 3->西(3), 0->北(4)
     return ((seat - oya + 4) % 4) + 1;
+}
+
+/**
+ * 麻雀卓のスケーリングを画面サイズに合わせて動的に計算・適用する
+ */
+function adjustTableScale() {
+    const boardArea = document.querySelector('.game-board-area');
+    const table = document.getElementById('mahjong-table');
+    if (!boardArea || !table || table.classList.contains('hidden')) return;
+    
+    // コンテナの寸法
+    // レイアウトの広がりに影響されないよう、実際のウィンドウ幅も考慮する
+    const w = Math.min(boardArea.clientWidth, window.innerWidth);
+    const h = boardArea.clientHeight || window.innerHeight * 0.65;
+    
+    // 麻雀卓の基準寸法（卓サイズ 650px + ボーダー 16px * 2 = 682px）
+    // 手元の牌が左右にはみ出すことを考慮し、基準サイズを 720 に引き上げて安全マージンを確保
+    const baseSize = 720;
+    
+    // スケール比を算出（余白考慮で0.95倍）
+    const scaleX = (w * 0.95) / baseSize;
+    const scaleY = (h * 0.95) / baseSize;
+    let scale = Math.min(scaleX, scaleY);
+    
+    // スケール範囲の制限（最大1.0、最小0.35）
+    if (scale > 1.0) scale = 1.0;
+    if (scale < 0.35) scale = 0.35;
+    
+    // transformを適用（中央配置を崩さないように translate(-50%, -50%) を含める）
+    table.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    table.style.webkitTransform = `translate(-50%, -50%) scale(${scale})`;
+    
+    // スケーリングされた卓の表示サイズに基づいてコンテナの最小高さを維持し、レイアウト崩れを防ぐ
+    boardArea.style.minHeight = `${baseSize * scale}px`;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

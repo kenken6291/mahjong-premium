@@ -451,6 +451,8 @@ input:checked + .slider:before {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 100%; /* 横幅いっぱいに広げる */
+    overflow: hidden; /* 子要素の物理的なはみ出しによる画面の左見切れ・横ブレを防止 */
 }
 
 .welcome-screen {
@@ -637,7 +639,7 @@ body.theme-neon .center-dashboard {
     bottom: 5px;
     left: 50%;
     transform: translateX(-50%);
-    width: 480px;
+    width: 620px; /* 480px から 620px に拡大して手牌全体をコンテナに収める */
 }
 
 /* 右 (RIGHT) - 90度反時計回り (実際には上向きに並べるか、回転させる) */
@@ -721,8 +723,10 @@ body.theme-neon .center-dashboard {
 .hand-wrapper {
     display: flex;
     align-items: flex-end;
+    justify-content: center; /* 左右均等のため中央揃えを追加 */
     gap: 8px;
     margin-top: 2px;
+    width: 100%; /* 横幅をいっぱいに使う */
 }
 
 .hand-container {
@@ -1564,35 +1568,190 @@ body.theme-neon .tile.tile-back {
     box-shadow: none !important;
 }
 
-/* レスポンシブ調整 */
+/* レスポンシブ調整 & スマホ最適化 */
+
+/* 2段階打牌時の選択牌スタイル */
+.seat-bottom .hand-container .tile.tile-selected,
+.seat-bottom .tsumo-container .tile.tile-selected {
+    transform: translateY(-20px) rotateX(-5deg) !important;
+    box-shadow: 0 10px 0 #999, 0 12px 12px rgba(46, 204, 113, 0.4) !important;
+    z-index: 50;
+    border-color: var(--primary-color) !important;
+}
+
+/* トグルボタン & ドロワーオーバーレイ */
+.btn-toggle-panel {
+    display: none; /* デフォルト（PC）は非表示 */
+    position: absolute;
+    left: 1.5rem;
+    top: 1.5rem;
+    padding: 0.6rem 1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    align-items: center;
+    gap: 0.5rem;
+    z-index: 110;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-toggle-panel:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+.drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 150;
+    transition: opacity 0.3s ease;
+}
+
+/* 麻雀卓のスケーリング用初期設定 */
+.mahjong-table {
+    /* JSで transform: scale() を適用するため、中心を基準にする */
+    transform-origin: center center;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0; /* JSで中央配置にするため余計なマージンを排除 */
+}
+
+/* 1024px以下のタブレット・スマホ対応 */
 @media (max-width: 1024px) {
+    .btn-toggle-panel {
+        display: flex; /* トグルボタンを表示 */
+    }
+    
+    .app-header {
+        padding-top: 4.5rem; /* トグルボタンの配置分ヘッダーの上の余白を確保 */
+    }
+    
     .game-container {
         flex-direction: column;
         align-items: center;
+        padding: 0 0.5rem 1rem 0.5rem;
+        gap: 0.5rem;
     }
+    
+    /* コントロールパネルをスライドインドロワー化 */
     .control-panel {
-        width: 100%;
-        max-width: 650px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 300px;
+        height: 100vh;
+        z-index: 200;
+        background: rgba(15, 25, 20, 0.95);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border-right: 1px solid var(--card-border);
+        border-radius: 0 16px 16px 0;
+        box-shadow: 8px 0 32px rgba(0, 0, 0, 0.5);
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        overflow-y: auto;
+        padding: 2rem 1.5rem;
+    }
+    
+    .control-panel.active {
+        transform: translateX(0);
     }
 }
 
-@media (max-width: 700px) {
-    .mahjong-table {
-        transform: scale(0.8);
-        transform-origin: center center;
+/* 768px以下のモバイル最適化 */
+@media (max-width: 768px) {
+    /* アクションボタンパネルのタップ領域と配置最適化 */
+    .player-action-panel {
+        bottom: auto;
+        top: -65px; /* スマホ表示時は手牌の上、卓側に寄せる */
+        background: rgba(0, 0, 0, 0.92);
+        padding: 0.5rem 0.8rem;
+        gap: 0.5rem;
+        border-radius: 10px;
+        border-color: rgba(255, 255, 255, 0.15);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.8);
     }
-    .game-board-area {
-        min-height: 520px;
+    
+    .btn-action {
+        padding: 0.6rem 0.9rem; /* タッチしやすいサイズ */
+        font-size: 0.9rem;
     }
-}
 
-@media (max-width: 550px) {
-    .mahjong-table {
-        transform: scale(0.6);
-        transform-origin: center center;
+    /* モバイル表示時に自分の手牌サイズをさらに小さくし、左右の見切れを防止 */
+    .seat-bottom .hand-container .tile,
+    .seat-bottom .tsumo-container .tile {
+        width: 32px !important;
+        height: 44px !important;
+        padding: 4px 2px !important;
+        border-radius: 3px !important;
+        font-size: 0.7rem !important;
+        box-shadow: 0 2px 0 #999, 0 3px 4px rgba(0,0,0,0.4) !important;
     }
-    .game-board-area {
-        min-height: 400px;
+
+    /* 手牌ラッパーの間隔も狭めて幅を削減 */
+    .seat-bottom .hand-wrapper {
+        gap: 4px !important;
+    }
+    .seat-bottom .hand-container {
+        gap: 1px !important;
+    }
+
+    /* モバイル用に選択状態の浮き上がり幅も調整 */
+    .seat-bottom .hand-container .tile.tile-selected,
+    .seat-bottom .tsumo-container .tile.tile-selected {
+        transform: translateY(-12px) rotateX(-5deg) !important;
+        box-shadow: 0 5px 0 #999, 0 6px 8px rgba(46, 204, 113, 0.4) !important;
+    }
+
+    /* 各種スートのフォントサイズなどのモバイル微調整 */
+    .seat-bottom .hand-container .tile .tile-suit-m .tile-val,
+    .seat-bottom .tsumo-container .tile .tile-suit-m .tile-val {
+        font-size: 0.95rem !important;
+    }
+    .seat-bottom .hand-container .tile .tile-suit-m .tile-kanji,
+    .seat-bottom .tsumo-container .tile .tile-suit-m .tile-kanji {
+        font-size: 0.75rem !important;
+        margin-top: -1px !important;
+    }
+    .seat-bottom .hand-container .tile .tile-suit-s-1,
+    .seat-bottom .tsumo-container .tile .tile-suit-s-1 {
+        font-size: 1.2rem !important;
+    }
+    .seat-bottom .hand-container .tile .tile-suit-z,
+    .seat-bottom .tsumo-container .tile .tile-suit-z {
+        font-size: 1.1rem !important;
+    }
+    
+    /* 1筒（特大ドット）のモバイル縮小 */
+    .seat-bottom .hand-container .tile .tile-suit-p.p-1 .pin-dot,
+    .seat-bottom .tsumo-container .tile .tile-suit-p.p-1 .pin-dot {
+        width: 16px !important;
+        height: 16px !important;
+    }
+    .seat-bottom .hand-container .tile .tile-suit-p.p-1 .pin-dot::after,
+    .seat-bottom .tsumo-container .tile .tile-suit-p.p-1 .pin-dot::after {
+        width: 6px !important;
+        height: 6px !important;
+        border-width: 1px !important;
+    }
+
+    /* 手牌全体のラッパーの幅を画面に収める */
+    .seat-bottom {
+        width: 480px !important; /* タイル幅32px×14枚（約464px）が綺麗に収まるサイズ */
+        max-width: none !important; /* ブラウザによる絶対配置要素の幅制限バグを防ぐ */
+        bottom: 0px !important; /* 少し下げる */
     }
 }
 

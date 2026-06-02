@@ -12,12 +12,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
     
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=1.0.17">
+    <link rel="stylesheet" href="styles.css?v=1.0.19">
 </head>
 <body class="theme-classic">
     <div class="glass-bg-blur"></div>
+    <div id="drawer-overlay" class="drawer-overlay hidden"></div>
     
     <header class="app-header">
+        <button id="btn-toggle-panel" class="btn-toggle-panel" aria-label="設定メニューを開く" title="設定とオンラインロビー">
+            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            <span>設定/ロビー</span>
+        </button>
         <h1 class="app-title">MAHJONG<span>PREMIUM</span></h1>
         <p class="app-subtitle">美しいビジュアルとオンライン通信を融合したプレミアム麻雀</p>
     </header>
@@ -340,7 +345,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 
     <!-- ゲームエンジンとアプリのスクリプト -->
-    <script src="mahjong.js?v=1.0.17"></script>
-    <script src="app.js?v=1.0.17"></script>
+    <script src="mahjong.js?v=1.0.19"></script>
+    <script src="app.js?v=1.0.19"></script>
 </body>
 </html>
