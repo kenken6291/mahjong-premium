@@ -225,19 +225,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initWorker() {
     if (window.Worker) {
-        aiWorker = new Worker('ai-worker.js');
-        aiWorker.onmessage = function(e) {
-            const { action, move } = e.data;
-            if (action === 'move' && move) {
-                // Execute COM move
-                setTimeout(() => {
-                    executeMove(move.from, move.to, move.piece, move.promote, move.isDrop);
-                }, 300); // Small natural thinking delay
-            } else if (action === 'move' && !move) {
-                // AI resigns
-                endGame(playerColor, "AIが投了しました。");
-            }
-        };
+        try {
+            aiWorker = new Worker('ai-worker.js');
+            aiWorker.onmessage = function(e) {
+                const { action, move } = e.data;
+                if (action === 'move' && move) {
+                    // Convert move.from (array [r, c]) to object {r, c} for executeMove
+                    const fromObj = move.from ? { r: move.from[0], c: move.from[1] } : null;
+                    // Execute COM move
+                    setTimeout(() => {
+                        executeMove(fromObj, move.to, move.piece, move.promote, move.isDrop);
+                    }, 300); // Small natural thinking delay
+                } else if (action === 'move' && !move) {
+                    // AI resigns
+                    endGame(playerColor, "AIが投了しました。");
+                }
+            };
+            aiWorker.onerror = function(err) {
+                console.error("AI Worker error:", err);
+                statusMessageEl.textContent = "AI思考エンジンでエラーが発生しました。再度お試しください。";
+            };
+        } catch (e) {
+            console.error("Failed to initialize Web Worker:", e);
+        }
     } else {
         console.error("Web Workers not supported on this browser!");
     }
