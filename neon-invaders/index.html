@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ネオン煌めくサイバーパンクスタイルのレトロなインベーダーゲーム。ブラウザで今すぐプレイ可能！">
+    <title>NEON INVADERS - サイバーパンク・シューティング</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- CSS Link -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 背景用の光効果 -->
+    <div class="bg-glow"></div>
+
+    <div class="game-container">
+        <!-- ヘッダータイトル -->
+        <header>
+            <h1 id="gameTitle" class="neon-text">NEON INVADERS</h1>
+            <!-- ゲームコントロール（一時停止・ミュート） -->
+            <div class="game-controls">
+                <button id="btnPause" class="control-btn" aria-label="一時停止">⏸</button>
+                <button id="btnMute" class="control-btn" aria-label="音量切り替え">🔊</button>
+            </div>
+        </header>
+
+        <!-- スコア・ステータス表示 -->
+        <div class="hud">
+            <div class="hud-item">
+                <span class="label">SCORE</span>
+                <span id="scoreVal" class="value neon-blue">000000</span>
+            </div>
+            <div class="hud-item">
+                <span class="label">HI-SCORE</span>
+                <span id="hiScoreVal" class="value neon-pink">000000</span>
+            </div>
+            <div class="hud-item">
+                <span class="label">WAVE</span>
+                <span id="waveVal" class="value neon-green">1</span>
+            </div>
+            <div class="hud-item">
+                <span class="label">SHIPS</span>
+                <div id="livesContainer" class="lives-container">
+                    <!-- JSで動的に残機マークを生成 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ゲーム画面の親要素 -->
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+            <!-- スタート / ゲームオーバー / 一時停止の画面オーバーレイ -->
+            <div id="screenOverlay" class="screen-overlay active">
+                <div class="overlay-content">
+                    <h2 id="overlayTitle" class="neon-text-pink">READY PLAYER ONE</h2>
+                    <p id="overlayMessage">地球を襲うネオンインベーダーを撃退せよ！</p>
+                    <button id="startBtn" class="neon-btn">START MISSION</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- コントロール説明 / モバイル用コントローラー -->
+        <div class="controls-panel">
+            <div class="keyboard-instructions">
+                <p><strong>[キーボード操作]</strong> 移動: <span class="key">←</span> <span class="key">→</span> または <span class="key">A</span> <span class="key">D</span> &nbsp;|&nbsp; 攻撃: <span class="key">SPACE</span> &nbsp;|&nbsp; 一時停止: <span class="key">P</span></p>
+            </div>
+            
+            <!-- タッチデバイス用UI (デフォルトはCSSで非表示、タッチ検出時に表示) -->
+            <div id="touchControls" class="touch-controls">
+                <button id="btnLeft" class="touch-btn">◀</button>
+                <button id="btnFire" class="touch-btn fire-btn">FIRE</button>
+                <button id="btnRight" class="touch-btn">▶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Link -->
+    <script src="game.js"></script>
+</body>
+</html>

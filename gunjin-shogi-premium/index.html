@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gunjin Shogi Premium | 通信・AI対戦軍人将棋</title>
+    <meta name="description" content="リアルタイムオンライン対戦、思考AI対戦、ローカル対面対戦を搭載した、ブラウザで遊べるプレミアムな軍人将棋（陸軍将棋）です。非対称情報の緊張感と美しい戦闘演出を完備。">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="styles.css?v=1.0.0">
+</head>
+<body class="theme-military">
+    <div class="glass-bg-blur"></div>
+    
+    <header class="app-header">
+        <div class="header-left">
+            <h1 class="app-title">GUNJIN SHOGI<span>PREMIUM</span></h1>
+            <p class="app-subtitle">不完全情報戦の緊張感をブラウザで。通信・PC対戦対応の軍人将棋</p>
+        </div>
+        <div class="header-right">
+            <button id="btn-mute" class="btn-icon-label" title="音声をミュート">
+                <svg id="svg-sound-on" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                <svg id="svg-sound-off" class="hidden" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                <span>MUTE</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="game-container">
+        <!-- 左側：コントロール・設定パネル -->
+        <section class="control-panel glass-panel" aria-label="ゲーム設定">
+            <h2 class="panel-title">ゲームコントロール</h2>
+            
+            <div class="control-group">
+                <label for="game-mode">対戦モード</label>
+                <select id="game-mode" class="custom-select">
+                    <option value="pve" selected>VS コンピュータ (PC戦)</option>
+                    <option value="local">ローカル対面戦 (VS 友達)</option>
+                    <option value="online">オンライン通信対戦 (Firebase)</option>
+                </select>
+            </div>
+
+            <!-- AI戦の設定 -->
+            <div class="control-group" id="ai-difficulty-group">
+                <label for="ai-difficulty">AI難易度</label>
+                <select id="ai-difficulty" class="custom-select">
+                    <option value="easy">初級 (偵察主導)</option>
+                    <option value="medium" selected>中級 (バランス型)</option>
+                    <option value="hard">上級 (心理戦・先読み)</option>
+                </select>
+            </div>
+
+            <div class="control-group" id="player-color-group">
+                <label for="player-color">あなたの手番</label>
+                <select id="player-color" class="custom-select">
+                    <option value="black" selected>先手 (赤軍・自陣下側)</option>
+                    <option value="white">後手 (青軍・自陣下側※盤面回転)</option>
+                </select>
+            </div>
+
+            <!-- デザインテーマ設定 -->
+            <div class="control-group">
+                <label for="theme-select">戦場のデザイン</label>
+                <select id="theme-select" class="custom-select">
+                    <option value="military" selected>ミリタリー (迷彩・スチール)</option>
+                    <option value="neon">サイバーネオン (ダーク・光)</option>
+                    <option value="classic">クラシック (木目調・将棋盤)</option>
+                </select>
+            </div>
+
+            <!-- オンライン対戦用パネル -->
+            <div class="control-group hidden" id="online-room-group">
+                <label>通信対戦ロビー</label>
+                <div class="online-setup-box glass-panel">
+                    <!-- 初期画面 -->
+                    <div id="online-init-view">
+                        <button id="btn-create-room" class="btn btn-secondary btn-full">新しく部屋を作る</button>
+                        <div class="room-join-input-group">
+                            <input type="text" id="input-room-id" placeholder="ルームID (6桁)" class="custom-select" maxlength="6">
+                            <button id="btn-join-room" class="btn btn-primary">入室する</button>
+                        </div>
+                    </div>
+                    <!-- 待機画面 -->
+                    <div id="online-waiting-view" class="hidden">
+                        <p class="waiting-message">対戦相手の入室を待っています...</p>
+                        <div class="room-id-display-box">
+                            <span class="room-id-label">ルームID:</span>
+                            <span id="display-room-id" class="room-id-value">------</span>
+                            <button id="btn-copy-room" class="btn-icon" title="ルームIDをコピー">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            </button>
+                        </div>
+                        <button id="btn-cancel-room" class="btn btn-secondary btn-danger btn-full">部屋を解散する</button>
+                    </div>
+                    <!-- 対局中画面 -->
+                    <div id="online-active-view" class="hidden">
+                        <div class="connection-status-box">
+                            <span class="status-dot green animate-pulse"></span>
+                            <span id="online-status-text">オンライン通信中</span>
+                        </div>
+                        <button id="btn-leave-room" class="btn btn-secondary btn-danger btn-full">この対局から退出</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- アクションボタン -->
+            <div class="action-buttons">
+                <button id="btn-restart" class="btn btn-primary btn-full">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                    <span>ゲームを初期化</span>
+                </button>
+                <button id="btn-resign" class="btn btn-secondary btn-danger btn-full" disabled>
+                    <span>投了（降参する）</span>
+                </button>
+                <button id="btn-undo" class="btn btn-secondary btn-full" disabled>
+                    <span>一手戻す</span>
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- 戦績表示 -->
+            <div class="stats-panel glass-panel">
+                <h3 class="stats-title">対戦成績</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">VS PC</span>
+                        <span class="stat-val"><span id="stat-pve-wins">0</span>勝 - <span id="stat-pve-losses">0</span>敗</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">ONLINE</span>
+                        <span class="stat-val"><span id="stat-online-wins">0</span>勝 - <span id="stat-online-losses">0</span>敗</span>
+                    </div>
+                </div>
+                <button id="btn-clear-stats" class="btn-text">戦績データをリセット</button>
+            </div>
+
+            <!-- チャット Presets（オンライン対戦時のみ有効） -->
+            <div class="control-group hidden" id="online-chat-group">
+                <label>簡易チャット送信</label>
+                <div class="chat-presets">
+                    <button class="btn-chat" data-msg="よろしくお願いします！">対局開始</button>
+                    <button class="btn-chat" data-msg="ありがとうございました！">対局終了</button>
+                    <button class="btn-chat" data-msg="いい手ですね！">称賛</button>
+                    <button class="btn-chat" data-msg="うわぁ、やられた！">悲鳴</button>
+                    <button class="btn-chat" data-msg="少し考えます...">考慮</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 中央〜右側：ゲーム盤面エリア -->
+        <section class="game-board-area" aria-label="ゲーム盤">
+            <!-- 相手の情報カード & 駒台（墓地） -->
+            <div class="opponent-section">
+                <div class="player-card glass-panel" id="player-opp-card">
+                    <div class="player-avatar opp-color">OPP</div>
+                    <div class="player-meta">
+                        <div class="player-name" id="name-opp">対戦相手 (COM)</div>
+                        <div class="player-timer" id="timer-opp">00:00</div>
+                    </div>
+                    <div class="status-indicator" id="status-opp">待機中</div>
+                </div>
+                
+                <!-- 相手の駒台（戦闘で撃破された自分の駒が表示される） -->
+                <div class="cemetery glass-panel" id="cemetery-opp">
+                    <div class="cemetery-title">獲得した駒 (敵軍の損失)</div>
+                    <div class="cemetery-pieces" id="cemetery-opp-pieces">
+                        <!-- 動的に撃破された駒が表向きで追加される -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 将棋盤面本体 -->
+            <div class="board-wrapper">
+                <!-- 配置フェーズ時のアシスト案内 -->
+                <div id="setup-banner" class="setup-banner glass-panel">
+                    <div class="setup-banner-content">
+                        <h3>🔧 配置フェーズ</h3>
+                        <p>手持ちの駒を自陣（下部3段）のマスに配置してください。「軍旗」は必ず司令部（丸い枠）のいずれかに置いてください。</p>
+                        <div class="setup-actions">
+                            <button id="btn-setup-random" class="btn btn-secondary">ランダム配置</button>
+                            <button id="btn-setup-clear" class="btn btn-secondary">全クリア</button>
+                            <button id="btn-setup-ready" class="btn btn-primary" disabled>配置完了 (対局開始)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 8x6 盤面 -->
+                <div id="board" class="board-grid">
+                    <!-- マス目が動的に生成される -->
+                </div>
+            </div>
+
+            <!-- 自分の情報カード & 駒台（墓地） -->
+            <div class="player-section">
+                <!-- 自分の手持ち駒プール（配置フェーズのみ表示） -->
+                <div class="piece-pool-container glass-panel" id="piece-pool-container">
+                    <div class="pool-title">配置可能な手持ち駒 (クリックして選択し、盤上に置いてください)</div>
+                    <div class="piece-pool" id="piece-pool">
+                        <!-- 未配置の駒がここに並ぶ -->
+                    </div>
+                </div>
+
+                <div class="cemetery-and-info">
+                    <!-- 自分の駒台（戦闘で撃破された相手の駒が表示される） -->
+                    <div class="cemetery glass-panel" id="cemetery-player">
+                        <div class="cemetery-title">獲得した駒 (自軍の損失)</div>
+                        <div class="cemetery-pieces" id="cemetery-player-pieces">
+                            <!-- 動的に撃破された駒が表向きで追加される -->
+                        </div>
+                    </div>
+
+                    <div class="player-card glass-panel" id="player-self-card">
+                        <div class="player-avatar self-color">YOU</div>
+                        <div class="player-meta">
+                            <div class="player-name" id="name-self">あなた</div>
+                            <div class="player-timer" id="timer-self">00:00</div>
+                        </div>
+                        <div class="status-indicator active" id="status-self">配置中</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- チャット吹き出しオーバーレイ（オンライン用） -->
+    <div id="chat-overlay-self" class="chat-bubble-overlay hidden">
+        <div class="chat-bubble animate-scale"></div>
+    </div>
+    <div id="chat-overlay-opp" class="chat-bubble-overlay hidden">
+        <div class="chat-bubble animate-scale"></div>
+    </div>
+
+    <!-- モーダル：戦闘判定の演出 -->
+    <div id="battle-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+        <div class="battle-modal-content glass-panel animate-scale">
+            <h2 class="battle-title">戦闘発生！</h2>
+            <div class="battle-arena">
+                <div class="battle-fighter attacker">
+                    <div class="fighter-side">攻撃側 (先手)</div>
+                    <div class="fighter-piece-card" id="battle-attacker-card">
+                        <span class="fighter-piece-name" id="battle-attacker-name">???</span>
+                    </div>
+                </div>
+                <div class="battle-vs">VS</div>
+                <div class="battle-fighter defender">
+                    <div class="fighter-side">防御側 (後手)</div>
+                    <div class="fighter-piece-card" id="battle-defender-card">
+                        <span class="fighter-piece-name" id="battle-defender-name">???</span>
+                    </div>
+                </div>
+            </div>
+            <div class="battle-result-banner" id="battle-result-text">相打ち</div>
+            <div class="battle-result-desc" id="battle-result-desc">両方の駒が消滅しました。</div>
+        </div>
+    </div>
+
+    <!-- モーダル：ローカル対戦用ターン切り替え目隠し -->
+    <div id="turn-transition-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+        <div class="transition-modal-content glass-panel animate-scale">
+            <h2 class="transition-title"><span id="next-player-name">後手</span>のターン</h2>
+            <p>画面を相手に見せないようにし、「手番を開始する」ボタンを押してください。</p>
+            <button id="btn-start-turn" class="btn btn-primary btn-full">手番を開始する</button>
+        </div>
+    </div>
+
+    <!-- モーダル：ゲーム終了（結果表示） -->
+    <div id="result-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+        <div class="result-modal-content glass-panel animate-scale">
+            <h2 class="result-heading" id="result-title">対局終了</h2>
+            <div class="result-body">
+                <div class="result-winner-box">
+                    <span id="winner-text">あなたの勝利！</span>
+                </div>
+                <p id="result-reason" class="result-reason-text">相手の軍旗を占領しました。</p>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-modal-close" class="btn btn-primary btn-full">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        <p>&copy; 2026 Gunjin Shogi Premium. Built with Realtime Communication & Premium UI.</p>
+    </footer>
+
+    <!-- Firebase App & Database Compat SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <!-- Game Script -->
+    <script src="app.js?v=1.0.0"></script>
+</body>
+</html>

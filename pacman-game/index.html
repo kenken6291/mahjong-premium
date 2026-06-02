@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PAC-MAN NEON - Classic Arcade Web Game</title>
+    <meta name="description" content="ブラウザで手軽に遊べるネオン調パックマンゲーム。美しいグラフィックスとレトロな効果音。">
+    <link rel="stylesheet" href="style.css?v=1.0.19">
+</head>
+<body>
+
+    <header>
+        <h1 id="game-title">PAC-MAN</h1>
+        <div class="subtitle">Neon Arcade</div>
+    </header>
+
+    <div class="game-container">
+        <!-- ゲーム描画用キャンバス -->
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="448" height="496"></canvas>
+        </div>
+
+        <!-- モバイル用仮想コントローラー（スマホサイズ時に表示） -->
+        <div class="mobile-controls">
+            <div class="ctrl-row">
+                <div class="ctrl-btn up" id="ctrl-up" data-dir="up"></div>
+            </div>
+            <div class="ctrl-row">
+                <div class="ctrl-btn left" id="ctrl-left" data-dir="left"></div>
+                <div class="ctrl-btn" style="visibility: hidden;"></div>
+                <div class="ctrl-btn right" id="ctrl-right" data-dir="right"></div>
+            </div>
+            <div class="ctrl-row">
+                <div class="ctrl-btn down" id="ctrl-down" data-dir="down"></div>
+            </div>
+        </div>
+
+        <!-- 情報およびコントロールパネル -->
+        <div class="info-panel">
+            <div class="panel-section">
+                <div class="panel-title">Score</div>
+                <div id="score" class="panel-value highlight">000000</div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">High Score</div>
+                <div id="highscore" class="panel-value">000000</div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Level</div>
+                <div id="level" class="panel-value">1</div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Lives</div>
+                <div id="lives" class="lives-container">
+                    <!-- JavaScriptでライフアイコンが動的に生成されます -->
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button id="start-btn">Start Game</button>
+                <button id="mute-btn" class="secondary-btn">Mute: OFF</button>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Controls</div>
+                <table class="controls-desc">
+                    <tr>
+                        <td><span class="key-cap">↑</span><span class="key-cap">W</span></td>
+                        <td>移動（上）</td>
+                    </tr>
+                    <tr>
+                        <td><span class="key-cap">↓</span><span class="key-cap">S</span></td>
+                        <td>移動（下）</td>
+                    </tr>
+                    <tr>
+                        <td><span class="key-cap">←</span><span class="key-cap">A</span></td>
+                        <td>移動（左）</td>
+                    </tr>
+                    <tr>
+                        <td><span class="key-cap">→</span><span class="key-cap">D</span></td>
+                        <td>移動（右）</td>
+                    </tr>
+                    <tr>
+                        <td><span class="key-cap">P</span></td>
+                        <td>一時停止 (Pause)</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- リザルト画面モーダル -->
+    <div class="modal-overlay" id="result-modal">
+        <div class="modal-content">
+            <div class="modal-title" id="modal-title">GAME OVER</div>
+            <div class="modal-stats">
+                <div>Final Score: <span id="final-score">0</span></div>
+                <div>Reached Level: <span id="final-level">1</span></div>
+            </div>
+            <button id="restart-btn">Play Again</button>
+        </div>
+    </div>
+
+    <footer>
+        Developed by <a href="https://github.com/kenken6291" target="_blank">kenken6291</a>
+    </footer>
+
+    <!-- スクリプト読み込み -->
+    <script src="audio.js?v=1.0.19"></script>
+    <script src="app.js?v=1.0.19"></script>
+</body>
+</html>

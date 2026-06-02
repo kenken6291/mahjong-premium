@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>HEAD-ON NEON - レトロ車線変更アクションゲーム</title>
+  <!-- Google Fonts: Orbitron -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <!-- スタイルシート -->
+  <link rel="stylesheet" href="style.css">
+  <meta name="description" content="ブラウザで手軽に遊べる、レトロアーケード名作「ヘッドオン」風の音付きアクションゲーム。車線を素早く切り替えて敵車をかわし、すべてのドットを回収しよう！">
+</head>
+<body>
+
+  <div class="game-container">
+    <!-- ヘッダー・スコアボード -->
+    <header class="header-panel">
+      <div class="score-display">
+        <span class="label">Score</span>
+        <span id="scoreVal" class="value">0</span>
+      </div>
+      <div class="stage-display">
+        <span class="label">Stage</span>
+        <span id="stageVal" class="value">1</span>
+      </div>
+      <div class="lives-display">
+        <span class="label">Lives</span>
+        <div id="livesContainer" class="lives-container">
+          <!-- JSでハートを描画 -->
+        </div>
+      </div>
+      <div class="header-controls">
+        <button id="muteBtn" class="header-btn" title="ミュート切替" aria-label="ミュート切替">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 9v6h4l5 5V4L8 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          </svg>
+        </button>
+        <button id="fullscreenBtn" class="header-btn" title="フルスクリーン切替" aria-label="フルスクリーン切替">
+          <svg viewBox="0 0 24 24">
+            <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ゲーム画面 (Canvas) とオーバーレイ -->
+    <div class="canvas-wrapper">
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- スタート画面オーバーレイ -->
+      <div id="startOverlay" class="overlay start">
+        <h2>HEAD-ON NEON</h2>
+        <p>
+          反時計回りに走りながら、すべてのドットを回収せよ！<br>
+          敵の赤い車との衝突を避けるのだ。<br>
+          交差点で車線（レーン）を変更できるぞ。
+        </p>
+        <button id="startBtn" class="btn">Start Game</button>
+      </div>
+
+      <!-- ゲームオーバーオーバーレイ -->
+      <div id="gameOverOverlay" class="overlay game-over hidden">
+        <h2>Game Over</h2>
+        <p>クラッシュ！すべてのマシンを失った。</p>
+        <p>最終スコア: <span id="finalScoreSpan" style="color: var(--neon-blue); font-weight: bold;">0</span></p>
+        <button id="restartBtn" class="btn btn-pink">Play Again</button>
+      </div>
+
+      <!-- ステージクリアオーバーレイ -->
+      <div id="gameClearOverlay" class="overlay game-clear hidden">
+        <h2>Stage Clear!</h2>
+        <p>見事にドットをすべて回収した！</p>
+        <button id="nextBtn" class="btn">Next Stage</button>
+      </div>
+    </div>
+
+    <!-- モバイル向け操作パネル -->
+    <section class="control-panel">
+      <div class="control-group left">
+        <button id="btnOut" class="action-btn btn-lane btn-out" aria-label="レーン外側へ">
+          <svg viewBox="0 0 24 24">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
+          <span>OUT</span>
+        </button>
+        <button id="btnIn" class="action-btn btn-lane btn-in" aria-label="レーン内側へ">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+          </svg>
+          <span>IN</span>
+        </button>
+      </div>
+
+      <div class="control-group right">
+        <button id="btnAccel" class="action-btn btn-accel" aria-label="加速">
+          <svg viewBox="0 0 24 24">
+            <path d="M5 13h11.86l-5.43 5.43L13 20l8-8-8-8-1.57 1.57L16.86 11H5v2z"/>
+          </svg>
+          <span>ACCEL</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 操作説明 (PC用) -->
+    <footer class="info-section">
+      <p>【PC操作】矢印キー(↑↓←→) / WASD: 車線変更 | スペース / Shift: 加速</p>
+    </footer>
+  </div>
+
+  <!-- スクリプトの読み込み -->
+  <script src="audio.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

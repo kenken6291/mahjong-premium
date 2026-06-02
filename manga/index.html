@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>60歳定年比較漫画：「俺たちの第二の幕開け」 | Web漫画ビューア</title>
+    <meta name="description" content="60歳定年時に迎える4つの主要な選択肢（再雇用、再就職、起業、完全リタイア）のメリット・デメリット、葛藤、そしてリアルな現実を比較するシネマティックWeb漫画。">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Shippori+Mincho:wght@400;600;800&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- イントロ（スタート画面） -->
+        <section id="intro-screen" class="active">
+            <div class="intro-content">
+                <p class="intro-subtitle">60歳定年比較漫画</p>
+                <h1 id="main-title">俺たちの第二の幕開け</h1>
+                <p class="intro-description">
+                    同じ会社で、同じ40年を過ごしてきた同期4人。<br>
+                    60歳の定年を迎えた彼らが選んだのは、四者四様の道だった。<br>
+                    「再雇用」「再就職」「起業」「完全リタイア」――<br>
+                    それぞれの現実に直面した彼らの、葛藤と再生を描くシネマティックストーリー。
+                </p>
+                <div class="intro-char-cards">
+                    <div class="char-card">
+                        <span class="char-role">再雇用</span>
+                        <h3>佐藤 健一</h3>
+                        <p>安定と慣れ親しんだ環境を選ぶが、立場と給与のギャップに直面する。</p>
+                    </div>
+                    <div class="char-card">
+                        <span class="char-role">再就職</span>
+                        <h3>鈴木 達也</h3>
+                        <p>現役の第一線を求め外の会社に挑むが、大企業の看板を失う現実に直面する。</p>
+                    </div>
+                    <div class="char-card">
+                        <span class="char-role">起業</span>
+                        <h3>高橋 宏</h3>
+                        <p>夢を追い蕎麦店を開業するが、全ての責任と赤字の重圧に直面する。</p>
+                    </div>
+                    <div class="char-card">
+                        <span class="char-role">リタイア</span>
+                        <h3>田中 茂</h3>
+                        <p>完全な自由を手にするが、社会的な繋がりを失い「孤独」に直面する。</p>
+                    </div>
+                </div>
+                <button id="btn-start" class="btn-primary">ストーリーを始める</button>
+            </div>
+        </section>
+
+        <!-- メインビューア画面 -->
+        <main id="viewer-screen">
+            <!-- ナビゲーションヘッダー -->
+            <header id="viewer-header">
+                <div class="header-left">
+                    <button id="btn-back-intro" class="btn-text">← タイトルに戻る</button>
+                    <span id="episode-badge" class="badge">プロローグ</span>
+                </div>
+                <div class="header-right">
+                    <select id="select-episode" aria-label="エピソード選択">
+                        <option value="0">プロローグ：明日からの地図</option>
+                        <option value="1">第1話：再雇用の現実（佐藤）</option>
+                        <option value="2">第2話：再就職の壁（鈴木）</option>
+                        <option value="3">第3話：起業の荒波（高橋）</option>
+                        <option value="4">第4話：完全リタイアの孤独（田中）</option>
+                        <option value="5">エピローグ：俺たちの第二章</option>
+                    </select>
+                </div>
+            </header>
+
+            <!-- 漫画コマ表示コンテナ (16:9) -->
+            <div id="manga-frame-container">
+                <div id="manga-frame">
+                    <img id="manga-image" src="" alt="漫画のコマ" class="fade-in">
+                    <!-- オーバーレイ演出（ト書き・ナレーション用） -->
+                    <div id="narration-overlay" class="hidden">
+                        <p id="narration-text"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- セリフ・字幕エリア -->
+            <section id="dialogue-section">
+                <div class="dialogue-card">
+                    <!-- 話者名 -->
+                    <div id="speaker-name-container" class="hidden">
+                        <span id="speaker-name">佐藤</span>
+                    </div>
+                    <!-- セリフ・ト書き本文 -->
+                    <div class="text-content">
+                        <p id="dialogue-text">「……終わったな。本当に俺たち、今日で定年なんだな」</p>
+                        <p id="stage-direction-text" class="stage-direction">（佐藤、ビールを一口飲み、ふうと息を吐き出す）</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 操作UIフッター -->
+            <footer id="viewer-footer">
+                <!-- プログレスバー -->
+                <div class="progress-container">
+                    <div id="progress-bar" style="width: 0%;"></div>
+                </div>
+                <div class="footer-controls">
+                    <button id="btn-prev" class="btn-secondary" disabled>前へ</button>
+                    <div class="progress-info">
+                        <span id="current-step">1</span> / <span id="total-steps">10</span>
+                    </div>
+                    <button id="btn-next" class="btn-primary">次へ</button>
+                </div>
+            </footer>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEON TETRIS - Modern Arcade Experience</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="ブラウザで手軽に遊べる、美しくサイバーパンクなネオン調のテトリスゲームです。ホールド機能や落下予測、スマートフォンでのタッチ操作にも完全対応。">
+    <meta name="keywords" content="テトリス, テトリスゲーム, オンラインゲーム, 無料ゲーム, HTML5, JavaScript, パズルゲーム, ネオン">
+    <meta name="author" content="Antigravity Team">
+    
+    <!-- Open Graph Tags -->
+    <meta property="og:title" content="NEON TETRIS - Modern Arcade Experience">
+    <meta property="og:description" content="グラスモーフィズムと鮮やかなネオンカラーが融合した、極上のブラウザテトリス。スマートフォンでもPCでもスムーズにプレイ可能です。">
+    <meta property="og:type" content="website">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background Elements -->
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <div class="app-container">
+        <header class="game-header">
+            <div class="header-main">
+                <h1 class="game-title">NEON <span class="highlight">TETRIS</span></h1>
+                <button id="mute-btn" class="mute-btn-header" aria-label="Mute/Unmute">
+                    <span id="mute-icon">🔊</span>
+                </button>
+            </div>
+            <p class="game-subtitle">Modern Cyber Arcade</p>
+        </header>
+
+        <main class="game-layout">
+            <!-- Left Panel: Hold -->
+            <section class="side-panel left-panel">
+                <div class="panel-card glass-panel" id="hold-panel">
+                    <h2 class="panel-title">HOLD</h2>
+                    <div class="canvas-container">
+                        <canvas id="hold-canvas" width="120" height="120"></canvas>
+                    </div>
+                </div>
+                
+                <div class="panel-card glass-panel stats-card">
+                    <div class="stat-item">
+                        <span class="stat-label">SCORE</span>
+                        <span class="stat-value" id="score">000000</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">LEVEL</span>
+                        <span class="stat-value" id="level">1</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">LINES</span>
+                        <span class="stat-value" id="lines">0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Center Panel: Main Board -->
+            <section class="board-panel">
+                <div class="board-wrapper glass-panel">
+                    <!-- Game Canvas -->
+                    <canvas id="game-board" width="300" height="600"></canvas>
+                    
+                    <!-- Game Over Overlay -->
+                    <div id="game-over-screen" class="overlay hidden">
+                        <div class="overlay-content">
+                            <h2 class="overlay-title">GAME OVER</h2>
+                            <p class="overlay-score-label">FINAL SCORE</p>
+                            <p class="overlay-score-value" id="final-score">0</p>
+                            <button id="restart-btn" class="glow-button">PLAY AGAIN</button>
+                        </div>
+                    </div>
+
+                    <!-- Pause Overlay -->
+                    <div id="pause-screen" class="overlay hidden">
+                        <div class="overlay-content">
+                            <h2 class="overlay-title">PAUSED</h2>
+                            <p class="overlay-msg">Press START to resume</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Next -->
+            <section class="side-panel right-panel">
+                <div class="panel-card glass-panel" id="next-panel">
+                    <h2 class="panel-title">NEXT</h2>
+                    <div class="canvas-container">
+                        <canvas id="next-canvas" width="120" height="120"></canvas>
+                    </div>
+                </div>
+
+                <div class="panel-card glass-panel controls-card">
+                    <button id="start-btn" class="glow-button primary-btn">START</button>
+                    <button id="reset-btn" class="glow-button secondary-btn">RESET</button>
+                </div>
+                
+                <div class="panel-card glass-panel info-card">
+                    <h3>CONTROLS</h3>
+                    <div class="controls-list">
+                        <div><span>← / →</span><span>Move</span></div>
+                        <div><span>↓</span><span>Soft Drop</span></div>
+                        <div><span>↑</span><span>Rotate</span></div>
+                        <div><span>Space</span><span>Hard Drop</span></div>
+                        <div><span>C / Shift</span><span>Hold</span></div>
+                        <div><span>P / Esc</span><span>Pause</span></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Touch Controls for Mobile Devices -->
+        <section class="touch-controls" id="touch-controller">
+            <!-- Left Side: D-Pad for movements -->
+            <div class="touch-group left-group">
+                <button id="btn-left" class="touch-btn dpad-btn">←</button>
+                <button id="btn-down" class="touch-btn dpad-btn">↓</button>
+                <button id="btn-right" class="touch-btn dpad-btn">→</button>
+            </div>
+            <!-- Right Side: Action buttons -->
+            <div class="touch-group right-group">
+                <button id="btn-hold" class="touch-btn action-btn">HOLD</button>
+                <button id="btn-rotate" class="touch-btn action-btn">ROTATE</button>
+                <button id="btn-drop" class="touch-btn action-btn">DROP</button>
+            </div>
+        </section>
+        
+        <footer class="game-footer">
+            <p>&copy; 2026 Neon Tetris. Built for GitHub Pages.</p>
+        </footer>
+    </div>
+
+    <!-- Game Logic -->
+    <script src="game.js"></script>
+</body>
+</html>
