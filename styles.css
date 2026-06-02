@@ -1643,6 +1643,11 @@ body.theme-neon .tile.tile-back {
         align-items: center;
         padding: 0 0.5rem 1rem 0.5rem;
         gap: 0.5rem;
+        z-index: auto; /* 重ね合わせコンテキストを解除し、ドロワーのz-indexを有効化 */
+    }
+
+    .game-board-area {
+        z-index: 1; /* オーバーレイ（z-index: 150）の背後に配置 */
     }
     
     /* コントロールパネルをスライドインドロワー化 */
